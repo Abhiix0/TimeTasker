@@ -1,74 +1,12 @@
 'use client'
 
-import { useEffect, useState } from 'react'
 import { Card } from '@/components/ui/card'
 import { Clock, CheckCircle2, Zap } from 'lucide-react'
-
-interface Stats {
-  sessionsToday: number
-  totalFocusTime: number
-  tasksCompleted: number
-}
+import { useAppContext } from '@/lib/app-context'
 
 export function StatsCards() {
-  const [stats, setStats] = useState<Stats>({
-    sessionsToday: 0,
-    totalFocusTime: 0,
-    tasksCompleted: 0
-  })
-  const [mounted, setMounted] = useState(false)
-
-  useEffect(() => {
-    setMounted(true)
-    
-    // Load stats from localStorage
-    const today = new Date().toDateString()
-    const savedStatsDate = localStorage.getItem('statsDate')
-    
-    if (savedStatsDate === today) {
-      const saved = localStorage.getItem('stats')
-      if (saved) {
-        try {
-          setStats(JSON.parse(saved))
-        } catch (e) {
-          console.error('Failed to load stats:', e)
-        }
-      }
-    } else {
-      // Reset stats for new day
-      localStorage.setItem('statsDate', today)
-      localStorage.setItem('stats', JSON.stringify({
-        sessionsToday: 0,
-        totalFocusTime: 0,
-        tasksCompleted: 0
-      }))
-    }
-
-    // Load tasks and count completed
-    const tasks = localStorage.getItem('tasks')
-    if (tasks) {
-      try {
-        const taskList = JSON.parse(tasks)
-        const completed = taskList.filter((t: any) => t.completed).length
-        setStats(prev => ({
-          ...prev,
-          tasksCompleted: completed
-        }))
-      } catch (e) {
-        console.error('Failed to load tasks:', e)
-      }
-    }
-  }, [])
-
-  if (!mounted) {
-    return (
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {Array.from({ length: 3 }).map((_, i) => (
-          <div key={i} className="h-40 bg-card rounded-xl animate-pulse" />
-        ))}
-      </div>
-    )
-  }
+  const { state } = useAppContext()
+  const { stats } = state
 
   const focusTimeHours = Math.floor(stats.totalFocusTime / 60)
   const focusTimeMinutes = stats.totalFocusTime % 60

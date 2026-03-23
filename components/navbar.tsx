@@ -6,70 +6,50 @@ import { Moon, Sun } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 export function Navbar() {
-  const [isDark, setIsDark] = useState(false)
+  const [isDark, setIsDark] = useState(true) // default dark
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
     setMounted(true)
-    const isDarkMode = document.documentElement.classList.contains('dark')
-    setIsDark(isDarkMode)
+    const saved = localStorage.getItem('theme')
+    const prefersDark = saved ? saved === 'dark' : true
+    document.documentElement.classList.toggle('dark', prefersDark)
+    setIsDark(prefersDark)
   }, [])
 
   const toggleDarkMode = () => {
     if (!mounted) return
-    const html = document.documentElement
-    html.classList.toggle('dark')
-    setIsDark(!isDark)
-    localStorage.setItem('theme', isDark ? 'light' : 'dark')
+    const next = !isDark
+    document.documentElement.classList.toggle('dark', next)
+    setIsDark(next)
+    localStorage.setItem('theme', next ? 'dark' : 'light')
   }
 
   return (
-    <nav className="sticky top-0 z-50 bg-background/80 backdrop-blur-md border-b border-border">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
-          {/* Logo */}
-          <Link href="/" className="flex items-center space-x-2">
-            <div className="w-8 h-8 bg-gradient-to-br from-primary to-accent rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-sm">ST</span>
-            </div>
-            <span className="font-bold text-xl bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-              Smart Time
-            </span>
-          </Link>
-
-          {/* Navigation Links */}
-          <div className="hidden md:flex items-center space-x-8">
-            <Link href="/timer" className="text-foreground hover:text-primary transition-colors text-sm font-medium">
-              Timer
-            </Link>
-            <Link href="/tasks" className="text-foreground hover:text-primary transition-colors text-sm font-medium">
-              Tasks
-            </Link>
-            <Link href="/dashboard" className="text-foreground hover:text-primary transition-colors text-sm font-medium">
-              Dashboard
-            </Link>
-            <Link href="/device" className="text-foreground hover:text-primary transition-colors text-sm font-medium">
-              Device
-            </Link>
-            <Link href="/about" className="text-foreground hover:text-primary transition-colors text-sm font-medium">
-              About
-            </Link>
-          </div>
-
-          {/* Right side - Theme toggle */}
-          <div className="flex items-center space-x-4">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={toggleDarkMode}
-              className="rounded-full"
-              aria-label="Toggle dark mode"
-            >
-              {mounted && (isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />)}
-            </Button>
-          </div>
+    <div className="flex items-center justify-between h-16 px-4">
+      {/* Logo — shown in landing layout; hidden in app layout (sidebar has it) */}
+      <Link href="/" className="flex items-center gap-2 md:hidden">
+        <div className="w-7 h-7 bg-gradient-to-br from-primary to-accent rounded-lg flex items-center justify-center">
+          <span className="text-white font-bold text-xs">ST</span>
         </div>
-      </div>
-    </nav>
+        <span className="font-bold text-base bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+          Smart Time
+        </span>
+      </Link>
+
+      {/* Spacer for desktop (sidebar has the logo) */}
+      <div className="hidden md:block" />
+
+      {/* Theme toggle */}
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={toggleDarkMode}
+        className="rounded-full ml-auto"
+        aria-label="Toggle dark mode"
+      >
+        {mounted ? (isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />) : <Moon className="w-5 h-5" />}
+      </Button>
+    </div>
   )
 }

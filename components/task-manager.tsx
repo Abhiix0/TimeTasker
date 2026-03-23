@@ -1,79 +1,29 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { CheckCircle2, Circle, Trash2, Plus } from 'lucide-react'
+import { useAppContext } from '@/lib/app-context'
 
-export interface Task {
-  id: string
-  title: string
-  completed: boolean
-  createdAt: number
-}
-
-interface TaskManagerProps {
-  onTasksChange?: (tasks: Task[]) => void
-}
-
-export function TaskManager({ onTasksChange }: TaskManagerProps) {
-  const [tasks, setTasks] = useState<Task[]>([])
+export function TaskManager() {
+  const { state, dispatch } = useAppContext()
+  const { tasks } = state
   const [newTaskTitle, setNewTaskTitle] = useState('')
-  const [mounted, setMounted] = useState(false)
-
-  // Load tasks from localStorage
-  useEffect(() => {
-    setMounted(true)
-    const savedTasks = localStorage.getItem('tasks')
-    if (savedTasks) {
-      try {
-        setTasks(JSON.parse(savedTasks))
-      } catch (e) {
-        console.error('Failed to load tasks:', e)
-      }
-    }
-  }, [])
-
-  // Save tasks to localStorage
-  useEffect(() => {
-    if (mounted) {
-      localStorage.setItem('tasks', JSON.stringify(tasks))
-      onTasksChange?.(tasks)
-    }
-  }, [tasks, mounted, onTasksChange])
 
   const addTask = (e: React.FormEvent) => {
     e.preventDefault()
     if (!newTaskTitle.trim()) return
-
-    const newTask: Task = {
-      id: Date.now().toString(),
-      title: newTaskTitle.trim(),
-      completed: false,
-      createdAt: Date.now()
-    }
-
-    setTasks([newTask, ...tasks])
+    dispatch({ type: 'ADD_TASK', payload: { title: newTaskTitle } })
     setNewTaskTitle('')
   }
 
-  const toggleTask = (id: string) => {
-    setTasks(tasks.map(task =>
-      task.id === id ? { ...task, completed: !task.completed } : task
-    ))
-  }
+  const toggleTask = (id: string) => dispatch({ type: 'TOGGLE_TASK', payload: { id } })
+  const deleteTask = (id: string) => dispatch({ type: 'DELETE_TASK', payload: { id } })
 
-  const deleteTask = (id: string) => {
-    setTasks(tasks.filter(task => task.id !== id))
-  }
-
-  const completedCount = tasks.filter(t => t.completed).length
-  const activeCount = tasks.filter(t => !t.completed).length
-
-  if (!mounted) {
-    return <div className="h-96 bg-card rounded-xl animate-pulse" />
-  }
+  const completedCount = tasks.filter((t) => t.completed).length
+  const activeCount = tasks.filter((t) => !t.completed).length
 
   return (
     <div className="w-full max-w-2xl mx-auto space-y-6">
@@ -126,7 +76,7 @@ export function TaskManager({ onTasksChange }: TaskManagerProps) {
             {activeCount > 0 && (
               <div className="space-y-2">
                 <h3 className="text-sm font-semibold text-muted-foreground px-2">Active Tasks ({activeCount})</h3>
-                {tasks.filter(t => !t.completed).map(task => (
+                {tasks.filter((t) => !t.completed).map((task) => (
                   <Card
                     key={task.id}
                     className="p-4 border-border hover:shadow-md transition-shadow flex items-center gap-3"
@@ -153,7 +103,7 @@ export function TaskManager({ onTasksChange }: TaskManagerProps) {
             {completedCount > 0 && (
               <div className="space-y-2 mt-6">
                 <h3 className="text-sm font-semibold text-muted-foreground px-2">Completed Tasks ({completedCount})</h3>
-                {tasks.filter(t => t.completed).map(task => (
+                {tasks.filter((t) => t.completed).map((task) => (
                   <Card
                     key={task.id}
                     className="p-4 border-border hover:shadow-md transition-shadow flex items-center gap-3 bg-card/50"

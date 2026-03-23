@@ -1,10 +1,5 @@
 import { PomodoroTimer } from '@/components/pomodoro-timer'
 
-export const metadata = {
-  title: 'Pomodoro Timer - Smart Time Tasker',
-  description: 'Start your focused work session with our Pomodoro timer.',
-}
-
 export default function TimerPage() {
   return (
     <div className="min-h-screen py-12 md:py-20 px-4">

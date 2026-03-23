@@ -56,7 +56,6 @@ type Action =
   | { type: 'PAUSE_TIMER' }
   | { type: 'RESET_TIMER' }
   | { type: 'COMPLETE_SESSION' }
-  | { type: 'RECORD_DAILY_ACTIVITY'; payload: { sessionsIncrement: number; focusMinutesIncrement: number } }
   | { type: 'UPDATE_SETTINGS'; payload: Partial<Settings> }
   | { type: 'RESET_ALL' }
   | { type: 'LOAD_FROM_STORAGE'; payload: Partial<AppState> }
@@ -75,11 +74,17 @@ function upsertDailyActivity(
 ): DailyActivity[] {
   const today = todayISO()
   const idx = activity.findIndex((a) => a.date === today)
+  let updated: DailyActivity[]
   if (idx === -1) {
-    return [...activity, { date: today, sessionsCompleted: 0, focusMinutes: 0, ...patch }]
+    updated = [...activity, { date: today, sessionsCompleted: 0, focusMinutes: 0, ...patch }]
+  } else {
+    updated = [...activity]
+    updated[idx] = { ...updated[idx], ...patch }
   }
-  const updated = [...activity]
-  updated[idx] = { ...updated[idx], ...patch }
+  // Keep only the last 90 days to prevent unbounded localStorage growth
+  if (updated.length > 90) {
+    updated = updated.sort((a, b) => a.date.localeCompare(b.date)).slice(-90)
+  }
   return updated
 }
 
@@ -151,13 +156,17 @@ function reducer(state: AppState, action: Action): AppState {
       return { ...state, timer: { ...state.timer, isRunning: false } }
 
     case 'RESET_TIMER': {
-      const totalTime = state.settings.focusDuration * 60
+      const { mode } = state.timer
+      const { focusDuration, shortBreakDuration, longBreakDuration } = state.settings
+      const totalTime =
+        mode === 'work' ? focusDuration * 60
+        : mode === 'shortBreak' ? shortBreakDuration * 60
+        : longBreakDuration * 60
       return {
         ...state,
         timer: {
           ...state.timer,
           isRunning: false,
-          mode: 'work',
           timeLeft: totalTime,
           totalTime,
         },
@@ -189,13 +198,12 @@ function reducer(state: AppState, action: Action): AppState {
       const newTotalFocusTime = stats.totalFocusTime + focusMinutesAdded
       const newSessionsToday = stats.sessionsToday + (isWork ? 1 : 0)
 
+      const todayKey = todayISO()
+      const todayEntry = state.weeklyActivity.find((a) => a.date === todayKey)
       const weeklyActivity = isWork
         ? upsertDailyActivity(state.weeklyActivity, {
-            sessionsCompleted:
-              (state.weeklyActivity.find((a) => a.date === todayISO())?.sessionsCompleted ?? 0) + 1,
-            focusMinutes:
-              (state.weeklyActivity.find((a) => a.date === todayISO())?.focusMinutes ?? 0) +
-              focusMinutesAdded,
+            sessionsCompleted: (todayEntry?.sessionsCompleted ?? 0) + 1,
+            focusMinutes: (todayEntry?.focusMinutes ?? 0) + focusMinutesAdded,
           })
         : state.weeklyActivity
 
@@ -207,7 +215,7 @@ function reducer(state: AppState, action: Action): AppState {
         timer: {
           ...timer,
           mode: nextMode,
-          isRunning: true, // always auto-continue cycling
+          isRunning: isWork ? true : settings.autoStartBreaks,
           timeLeft: nextDuration * 60,
           totalTime: nextDuration * 60,
           sessionsCompleted: newSessionsCompleted,
@@ -221,23 +229,6 @@ function reducer(state: AppState, action: Action): AppState {
           longestStreak,
         },
         weeklyActivity,
-      }
-    }
-
-    case 'RECORD_DAILY_ACTIVITY': {
-      const { sessionsIncrement, focusMinutesIncrement } = action.payload
-      const today = todayISO()
-      const existing = state.weeklyActivity.find((a) => a.date === today)
-      const newActivity = upsertDailyActivity(state.weeklyActivity, {
-        sessionsCompleted: (existing?.sessionsCompleted ?? 0) + sessionsIncrement,
-        focusMinutes: (existing?.focusMinutes ?? 0) + focusMinutesIncrement,
-      })
-      const currentStreak = calcStreak(newActivity)
-      const longestStreak = Math.max(currentStreak, state.stats.longestStreak)
-      return {
-        ...state,
-        weeklyActivity: newActivity,
-        stats: { ...state.stats, currentStreak, longestStreak },
       }
     }
 
@@ -262,8 +253,19 @@ function reducer(state: AppState, action: Action): AppState {
     case 'RESET_ALL':
       return { ...initialState }
 
-    case 'LOAD_FROM_STORAGE':
-      return { ...state, ...action.payload }
+    case 'LOAD_FROM_STORAGE': {
+      const payload = action.payload
+      return {
+        ...state,
+        tasks: payload.tasks ?? state.tasks,
+        weeklyActivity: payload.weeklyActivity ?? state.weeklyActivity,
+        stats: payload.stats ? { ...state.stats, ...payload.stats } : state.stats,
+        settings: payload.settings ? { ...state.settings, ...payload.settings } : state.settings,
+        timer: payload.timer
+          ? { ...state.timer, ...payload.timer, isRunning: false }
+          : state.timer,
+      }
+    }
 
     default:
       return state

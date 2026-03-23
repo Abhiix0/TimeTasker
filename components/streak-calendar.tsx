@@ -136,9 +136,14 @@ export function StreakCalendar({ activity }: Props) {
       {tooltip && (
         <div
           className="fixed z-50 pointer-events-none px-3 py-2 rounded-lg text-xs shadow-lg border border-border bg-card text-foreground"
-          style={{ left: tooltip.x + 20, top: tooltip.y - 10 }}
+          style={{
+            left: Math.min(tooltip.x + 20, window.innerWidth - 180),
+            top: Math.max(tooltip.y - 40, 8),
+          }}
         >
-          <p className="font-semibold">{new Date(tooltip.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</p>
+          <p className="font-semibold">
+            {new Date(tooltip.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+          </p>
           <p className="text-muted-foreground">{tooltip.sessions} session{tooltip.sessions !== 1 ? 's' : ''} · {tooltip.focusMinutes} min</p>
         </div>
       )}

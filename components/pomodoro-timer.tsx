@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Play, Pause, RotateCcw, SkipForward } from 'lucide-react'
@@ -60,28 +60,27 @@ export function PomodoroTimer() {
 
   const cfg = MODE_CONFIG[mode]
 
-  // Track previous isRunning to detect transition → play sound on session complete
-  const prevTimeLeft = useRef(timeLeft)
-
   // Single interval effect — ticks every second when running
   useEffect(() => {
     if (!isRunning) return
-
     const id = setInterval(() => {
       dispatch({ type: 'TICK_TIMER' })
     }, 1000)
-
     return () => clearInterval(id)
   }, [isRunning, dispatch])
 
-  // Detect timeLeft hitting 0 → complete session + play sound
+  // Session complete detection — safe, no ref needed.
+  // TICK_TIMER guards against timeLeft <= 0 in the reducer, so this only
+  // fires once when timeLeft genuinely reaches 0 while the timer is running.
+  // Intentionally depends only on timeLeft to avoid double-fire when
+  // isRunning flips during the same render cycle.
   useEffect(() => {
-    if (prevTimeLeft.current > 0 && timeLeft === 0 && isRunning) {
+    if (timeLeft === 0 && isRunning) {
       if (settings.soundEnabled) playNotificationSound()
       dispatch({ type: 'COMPLETE_SESSION' })
     }
-    prevTimeLeft.current = timeLeft
-  }, [timeLeft, isRunning, dispatch, settings.soundEnabled])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timeLeft])
 
   const progress = totalTime > 0 ? 1 - timeLeft / totalTime : 0
   const circumference = 2 * Math.PI * 45

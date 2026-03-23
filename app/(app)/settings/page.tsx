@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -36,7 +36,6 @@ export default function SettingsPage() {
   const { settings } = state
   const toast = useSimpleToast()
 
-  // Local form state — mirrors settings until saved
   const [form, setForm] = useState({
     focusDuration:       settings.focusDuration,
     shortBreakDuration:  settings.shortBreakDuration,
@@ -45,6 +44,17 @@ export default function SettingsPage() {
     soundEnabled:        settings.soundEnabled,
     autoStartBreaks:     settings.autoStartBreaks,
   })
+
+  useEffect(() => {
+    setForm({
+      focusDuration:       settings.focusDuration,
+      shortBreakDuration:  settings.shortBreakDuration,
+      longBreakDuration:   settings.longBreakDuration,
+      dailyGoal:           settings.dailyGoal,
+      soundEnabled:        settings.soundEnabled,
+      autoStartBreaks:     settings.autoStartBreaks,
+    })
+  }, [settings])
 
   const set = <K extends keyof typeof form>(key: K, value: typeof form[K]) =>
     setForm((f) => ({ ...f, [key]: value }))
@@ -135,7 +145,7 @@ export default function SettingsPage() {
             />
             <ToggleRow
               label="Auto-start Breaks"
-              description="Automatically start break timer after a work session"
+              description="Automatically resume work session after a break ends"
               checked={form.autoStartBreaks}
               onCheckedChange={(v) => set('autoStartBreaks', v)}
             />

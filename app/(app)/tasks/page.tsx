@@ -1,5 +1,7 @@
 import { TaskManager } from '@/components/task-manager'
 
+// This is a Server Component. TaskManager is a Client Component rendered inside it.
+// Metadata export here is intentional and valid.
 export const metadata = {
   title: 'Task Manager - Smart Time Tasker',
   description: 'Manage your tasks and track your progress.',

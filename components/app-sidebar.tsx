@@ -10,6 +10,8 @@ import {
   Trophy,
   Flame,
   Settings,
+  Info,
+  Cpu,
 } from 'lucide-react'
 import {
   Sidebar,
@@ -17,6 +19,7 @@ import {
   SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
+  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
@@ -25,14 +28,25 @@ import {
 import { useAppContext } from '@/lib/app-context'
 
 const NAV_ITEMS = [
-  { href: '/dashboard', label: 'Dashboard',   icon: LayoutDashboard },
-  { href: '/timer',     label: 'Timer',        icon: Timer },
-  { href: '/tasks',     label: 'Tasks',        icon: CheckSquare },
-  { href: '/analytics', label: 'Analytics',   icon: BarChart3 },
-  { href: '/leaderboard', label: 'Leaderboard', icon: Trophy },
-  { href: '/streaks',   label: 'Streaks',      icon: Flame },
-  { href: '/settings',  label: 'Settings',     icon: Settings },
+  { href: '/dashboard',   label: 'Dashboard',   icon: LayoutDashboard },
+  { href: '/timer',       label: 'Timer',        icon: Timer },
+  { href: '/tasks',       label: 'Tasks',        icon: CheckSquare },
+  { href: '/analytics',   label: 'Analytics',    icon: BarChart3 },
+  { href: '/leaderboard', label: 'Leaderboard',  icon: Trophy },
+  { href: '/streaks',     label: 'Streaks',      icon: Flame },
+  { href: '/settings',    label: 'Settings',     icon: Settings },
 ]
+
+const INFO_ITEMS = [
+  { href: '/about',  label: 'About',  icon: Info },
+  { href: '/device', label: 'Device', icon: Cpu  },
+]
+
+function isActiveRoute(pathname: string, href: string): boolean {
+  // Dashboard must be exact — it's the root app route
+  if (href === '/dashboard') return pathname === href
+  return pathname === href || pathname.startsWith(href + '/')
+}
 
 export function AppSidebar() {
   const pathname = usePathname()
@@ -59,7 +73,34 @@ export function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
-                const isActive = pathname === href
+                const isActive = isActiveRoute(pathname, href)
+                return (
+                  <SidebarMenuItem key={href}>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={isActive}
+                      tooltip={label}
+                      className={isActive ? 'text-primary font-semibold' : ''}
+                    >
+                      <Link href={href}>
+                        <Icon className={isActive ? 'text-primary' : ''} />
+                        <span>{label}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )
+              })}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        {/* Info section */}
+        <SidebarGroup>
+          <SidebarGroupLabel>Info</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {INFO_ITEMS.map(({ href, label, icon: Icon }) => {
+                const isActive = isActiveRoute(pathname, href)
                 return (
                   <SidebarMenuItem key={href}>
                     <SidebarMenuButton

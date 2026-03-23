@@ -7,9 +7,10 @@ import { StatsCards } from '@/components/stats-cards'
 import { useAppContext } from '@/lib/app-context'
 import { TrendingUp, Calendar, Timer, CheckCircle2, Circle } from 'lucide-react'
 
-// Day label from ISO date string
+// Day label from ISO date string — parsed as local time to avoid UTC offset shifting the day
 function dayLabel(iso: string) {
-  return new Date(iso).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+  const [year, month, day] = iso.split('-').map(Number)
+  return new Date(year, month - 1, day).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
 }
 
 export default function DashboardPage() {
@@ -95,7 +96,7 @@ export default function DashboardPage() {
               </p>
             ) : (
               <div className="space-y-4">
-                {weeklyActivity.slice(-7).map((day, idx) => {
+                {[...weeklyActivity].sort((a, b) => a.date.localeCompare(b.date)).slice(-7).map((day, idx) => {
                   const pct = Math.round((day.sessionsCompleted / maxSessions) * 100)
                   return (
                     <div key={idx} className="space-y-1.5">

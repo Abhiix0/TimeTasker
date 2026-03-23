@@ -9,32 +9,46 @@ import {
 } from 'recharts'
 import { Clock, Zap, Trophy, CheckSquare } from 'lucide-react'
 
-const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+// Hardcoded oklch values matching globals.css dark theme.
+// hsl(var(--x)) does NOT resolve inside SVG presentation attributes in most browsers.
+const CHART_COLORS = {
+  primary:         'oklch(0.65 0.12 280)',
+  accent:          'oklch(0.70 0.10 290)',
+  border:          'oklch(0.28 0.04 270)',
+  mutedForeground: 'oklch(0.65 0.08 280)',
+  card:            'oklch(0.20 0.02 256.97)',
+  foreground:      'oklch(0.95 0.005 280)',
+}
 
+// Parsed as local time to avoid UTC offset shifting the day
 function dayLabel(iso: string) {
-  return DAY_NAMES[new Date(iso).getDay()]
+  const [year, month, day] = iso.split('-').map(Number)
+  return new Date(year, month - 1, day).toLocaleDateString('en-US', { weekday: 'short' })
 }
 
 const TOOLTIP_STYLE = {
-  backgroundColor: 'hsl(var(--card))',
-  border: '1px solid hsl(var(--border))',
+  backgroundColor: CHART_COLORS.card,
+  border: `1px solid ${CHART_COLORS.border}`,
   borderRadius: '8px',
-  color: 'hsl(var(--foreground))',
+  color: CHART_COLORS.foreground,
   fontSize: 12,
 }
 
-const AXIS_STYLE = { fill: 'hsl(var(--muted-foreground))', fontSize: 12 }
+const AXIS_STYLE = { fill: CHART_COLORS.mutedForeground, fontSize: 12 }
 
 export default function AnalyticsPage() {
   const { state } = useAppContext()
   const { weeklyActivity, stats, tasks } = state
 
-  // Build chart data — last 7 days
-  const chartData = weeklyActivity.slice(-7).map((d) => ({
-    day: dayLabel(d.date),
-    focusMinutes: d.focusMinutes,
-    sessions: d.sessionsCompleted,
-  }))
+  // Build chart data — last 7 days, sorted by date
+  const chartData = [...weeklyActivity]
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .slice(-7)
+    .map((d) => ({
+      day: dayLabel(d.date),
+      focusMinutes: d.focusMinutes,
+      sessions: d.sessionsCompleted,
+    }))
 
   // Summary stats
   const totalWeeklyFocus = weeklyActivity.reduce((s, d) => s + d.focusMinutes, 0)
@@ -126,11 +140,11 @@ export default function AnalyticsPage() {
               <AreaChart data={chartData} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="focusGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.35} />
-                    <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                    <stop offset="5%" stopColor={CHART_COLORS.primary} stopOpacity={0.35} />
+                    <stop offset="95%" stopColor={CHART_COLORS.primary} stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke={CHART_COLORS.border} vertical={false} />
                 <XAxis dataKey="day" tick={AXIS_STYLE} axisLine={false} tickLine={false} />
                 <YAxis
                   tick={AXIS_STYLE}
@@ -146,10 +160,10 @@ export default function AnalyticsPage() {
                 <Area
                   type="monotone"
                   dataKey="focusMinutes"
-                  stroke="hsl(var(--primary))"
+                  stroke={CHART_COLORS.primary}
                   strokeWidth={2}
                   fill="url(#focusGradient)"
-                  dot={{ fill: 'hsl(var(--primary))', r: 4 }}
+                  dot={{ fill: CHART_COLORS.primary, r: 4 }}
                   activeDot={{ r: 6 }}
                 />
               </AreaChart>
@@ -167,11 +181,11 @@ export default function AnalyticsPage() {
               <BarChart data={chartData} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="hsl(var(--accent))" stopOpacity={1} />
-                    <stop offset="100%" stopColor="hsl(var(--accent))" stopOpacity={0.5} />
+                    <stop offset="0%" stopColor={CHART_COLORS.accent} stopOpacity={1} />
+                    <stop offset="100%" stopColor={CHART_COLORS.accent} stopOpacity={0.5} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke={CHART_COLORS.border} vertical={false} />
                 <XAxis dataKey="day" tick={AXIS_STYLE} axisLine={false} tickLine={false} />
                 <YAxis
                   tick={AXIS_STYLE}
@@ -183,7 +197,7 @@ export default function AnalyticsPage() {
                 <Tooltip
                   contentStyle={TOOLTIP_STYLE}
                   formatter={(v: number) => [v, 'Sessions']}
-                  cursor={{ fill: 'hsl(var(--muted))', opacity: 0.4 }}
+                  cursor={{ fill: CHART_COLORS.border, opacity: 0.4 }}
                 />
                 <Bar
                   dataKey="sessions"

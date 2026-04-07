@@ -1,0 +1,29 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "leaderboard",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "showOnLeaderboard", "order": "ASCENDING" },
+        { "fieldPath": "weeklyFocusMinutes", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "leaderboard",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "showOnLeaderboard", "order": "ASCENDING" },
+        { "fieldPath": "weeklySessions", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "leaderboard",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "showOnLeaderboard", "order": "ASCENDING" },
+        { "fieldPath": "streak", "order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

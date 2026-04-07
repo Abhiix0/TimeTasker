@@ -36,7 +36,7 @@ export default function AboutPage() {
           </div>
 
           <div className="flex items-center justify-center">
-            <div className="relative w-full h-96 bg-gradient-to-br from-destructive/20 to-accent/20 rounded-3xl flex items-center justify-center border border-destructive/20">
+            <div className="relative w-full h-96 bg-linear-to-br from-destructive/20 to-accent/20 rounded-3xl flex items-center justify-center border border-destructive/20">
               <div className="text-center">
                 <div className="text-8xl mb-4">📱</div>
                 <p className="text-muted-foreground">Constant Distractions</p>
@@ -48,7 +48,7 @@ export default function AboutPage() {
         {/* Solution Section */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 mb-16 items-center">
           <div className="order-2 lg:order-1 flex items-center justify-center">
-            <div className="relative w-full h-96 bg-gradient-to-br from-primary/20 to-accent/20 rounded-3xl flex items-center justify-center border border-primary/20">
+            <div className="relative w-full h-96 bg-linear-to-br from-primary/20 to-accent/20 rounded-3xl flex items-center justify-center border border-primary/20">
               <div className="text-center">
                 <div className="text-8xl mb-4">✨</div>
                 <p className="text-muted-foreground">Deep Focus</p>
@@ -64,7 +64,7 @@ export default function AboutPage() {
             
             <div className="space-y-4 mb-6">
               <div className="flex gap-4">
-                <div className="flex-shrink-0">
+                <div className="shrink-0">
                   <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-primary text-white">
                     <Target className="w-6 h-6" />
                   </div>
@@ -76,7 +76,7 @@ export default function AboutPage() {
               </div>
 
               <div className="flex gap-4">
-                <div className="flex-shrink-0">
+                <div className="shrink-0">
                   <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-accent text-white">
                     <Brain className="w-6 h-6" />
                   </div>
@@ -88,7 +88,7 @@ export default function AboutPage() {
               </div>
 
               <div className="flex gap-4">
-                <div className="flex-shrink-0">
+                <div className="shrink-0">
                   <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-secondary text-white">
                     <Zap className="w-6 h-6" />
                   </div>
@@ -169,8 +169,8 @@ export default function AboutPage() {
               }
             ].map((item, i) => (
               <div key={i} className="flex gap-6 items-start">
-                <div className="flex-shrink-0">
-                  <div className="flex items-center justify-center w-12 h-12 rounded-lg bg-gradient-to-br from-primary to-accent text-white font-bold">
+                <div className="shrink-0">
+                  <div className="flex items-center justify-center w-12 h-12 rounded-lg bg-linear-to-br from-primary to-accent text-white font-bold">
                     {i + 1}
                   </div>
                 </div>
@@ -200,7 +200,7 @@ export default function AboutPage() {
         </div>
 
         {/* Mission Statement */}
-        <Card className="p-12 border-border bg-gradient-to-br from-primary/10 to-accent/10 text-center mb-16">
+        <Card className="p-12 border-border bg-linear-to-br from-primary/10 to-accent/10 text-center mb-16">
           <h2 className="text-3xl font-bold mb-4">Our Mission</h2>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto mb-8">
             To empower every student, professional, and entrepreneur to achieve their most ambitious goals through focused work, strategic breaks, and distraction-free productivity.
@@ -218,7 +218,7 @@ export default function AboutPage() {
           </p>
           
           <div className="flex flex-col sm:flex-row gap-4 justify-center flex-wrap">
-            <Button asChild size="lg" className="rounded-full bg-gradient-to-r from-primary to-accent hover:shadow-lg">
+            <Button asChild size="lg" className="rounded-full bg-linear-to-r from-primary to-accent hover:shadow-lg">
               <Link href="/timer">Start Your First Session</Link>
             </Button>
             <Button asChild size="lg" variant="outline" className="rounded-full">
@@ -230,3 +230,4 @@ export default function AboutPage() {
     </div>
   )
 }
+

@@ -19,7 +19,10 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { useAppContext } from '@/lib/app-context'
-import { Timer, Cpu, Database, Trash2, Download, Wifi } from 'lucide-react'
+import { doc, setDoc, getDoc } from 'firebase/firestore'
+import { db, auth } from '@/lib/firebase'
+import { Timer, Cpu, Database, Trash2, Download, Wifi, Shield } from 'lucide-react'
+import { useEsp32 } from '@/lib/use-esp32'
 
 // Simple inline toast — avoids needing a toast provider
 function useSimpleToast() {
@@ -35,6 +38,11 @@ export default function SettingsPage() {
   const { state, dispatch } = useAppContext()
   const { settings } = state
   const toast = useSimpleToast()
+  const uid = auth.currentUser?.uid ?? null
+  const { status: deviceStatus, connect: connectDevice, disconnect: disconnectDevice } = useEsp32(uid)
+  const [bridgeUrl, setBridgeUrl] = useState(
+    process.env.NEXT_PUBLIC_ESP32_BRIDGE_URL ?? ''
+  )
 
   const [form, setForm] = useState({
     focusDuration:       settings.focusDuration,
@@ -44,6 +52,22 @@ export default function SettingsPage() {
     soundEnabled:        settings.soundEnabled,
     autoStartBreaks:     settings.autoStartBreaks,
   })
+
+  const [showOnLeaderboard, setShowOnLeaderboard] = useState(true)
+
+  // Load showOnLeaderboard from Firestore on mount
+  useEffect(() => {
+    const uid = auth.currentUser?.uid
+    if (!uid) return
+    getDoc(doc(db, 'leaderboard', uid)).then((snap) => {
+      if (snap.exists()) {
+        const data = snap.data()
+        if (typeof data.showOnLeaderboard === 'boolean') {
+          setShowOnLeaderboard(data.showOnLeaderboard)
+        }
+      }
+    }).catch(console.error)
+  }, [])
 
   useEffect(() => {
     setForm({
@@ -82,6 +106,19 @@ export default function SettingsPage() {
     localStorage.removeItem('stt_app_state')
     dispatch({ type: 'RESET_ALL' })
     toast.show('All data cleared.')
+  }
+
+  const toggleLeaderboard = async (value: boolean) => {
+    setShowOnLeaderboard(value)
+    const uid = auth.currentUser?.uid
+    if (!uid) return
+    try {
+      await setDoc(doc(db, 'leaderboard', uid), { showOnLeaderboard: value }, { merge: true })
+      toast.show(value ? 'You are now visible on the leaderboard.' : 'You are now hidden from the leaderboard.')
+    } catch (e) {
+      console.error(e)
+      toast.show('Failed to update privacy setting.')
+    }
   }
 
   return (
@@ -153,7 +190,7 @@ export default function SettingsPage() {
 
           <Button
             onClick={saveTimerSettings}
-            className="rounded-full bg-gradient-to-r from-primary to-accent hover:shadow-lg w-full sm:w-auto"
+            className="rounded-full bg-linear-to-r from-primary to-accent hover:shadow-lg w-full sm:w-auto"
           >
             Save Timer Settings
           </Button>
@@ -168,8 +205,17 @@ export default function SettingsPage() {
           <Separator />
 
           <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-destructive shrink-0" />
-            <span className="text-sm text-muted-foreground">Not Connected</span>
+            <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${
+              deviceStatus === 'connected'  ? 'bg-green-500'  :
+              deviceStatus === 'connecting' ? 'bg-yellow-400' :
+              'bg-destructive'
+            }`} />
+            <span className="text-sm text-muted-foreground">
+              {deviceStatus === 'connected'  ? 'Connected'    :
+               deviceStatus === 'connecting' ? 'Connecting…'  :
+               deviceStatus === 'error'      ? 'Error'        :
+               'Not Connected'}
+            </span>
           </div>
 
           <p className="text-sm text-muted-foreground leading-relaxed">
@@ -177,15 +223,36 @@ export default function SettingsPage() {
             push buttons, and audio alerts — letting you leave your phone behind during focus sessions.
           </p>
 
-          {/* TODO: implement WebSocket connection to ESP32 device */}
-          <Button
-            variant="outline"
-            className="rounded-full gap-2"
-            onClick={() => toast.show('ESP32 integration coming soon.')}
-          >
-            <Wifi className="w-4 h-4" />
-            Connect Device
-          </Button>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label className="text-sm">Bridge URL</Label>
+              <Input
+                value={bridgeUrl}
+                onChange={(e) => setBridgeUrl(e.target.value)}
+                placeholder="ws://your-server:8765"
+                className="rounded-lg font-mono text-sm"
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                className="rounded-full gap-2"
+                disabled={deviceStatus === 'connecting' || deviceStatus === 'connected'}
+                onClick={() => connectDevice(bridgeUrl)}
+              >
+                <Wifi className="w-4 h-4" />
+                Connect
+              </Button>
+              <Button
+                variant="outline"
+                className="rounded-full"
+                disabled={deviceStatus === 'disconnected' || deviceStatus === 'error'}
+                onClick={disconnectDevice}
+              >
+                Disconnect
+              </Button>
+            </div>
+          </div>
         </Card>
 
         {/* ── Account ────────────────────────────────────────────────── */}
@@ -208,6 +275,21 @@ export default function SettingsPage() {
           >
             Connect Firebase
           </Button>
+        </Card>
+
+        {/* ── Privacy ────────────────────────────────────────────────── */}
+        <Card className="p-6 border-border space-y-4">
+          <div className="flex items-center gap-2">
+            <Shield className="w-5 h-5 text-primary" />
+            <h2 className="text-lg font-bold">Privacy</h2>
+          </div>
+          <Separator />
+          <ToggleRow
+            label="Show me on the leaderboard"
+            description="Allow other users to see your focus stats in the leaderboard"
+            checked={showOnLeaderboard}
+            onCheckedChange={toggleLeaderboard}
+          />
         </Card>
 
         {/* ── Data Management ────────────────────────────────────────── */}
@@ -310,3 +392,4 @@ function ToggleRow({
     </div>
   )
 }
+

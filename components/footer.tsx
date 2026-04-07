@@ -10,7 +10,7 @@ export function Footer() {
           {/* Brand */}
           <div>
             <div className="flex items-center space-x-2 mb-4">
-              <div className="w-8 h-8 bg-gradient-to-br from-primary to-accent rounded-lg flex items-center justify-center">
+              <div className="w-8 h-8 bg-linear-to-br from-primary to-accent rounded-lg flex items-center justify-center">
                 <span className="text-white font-bold text-sm">ST</span>
               </div>
               <span className="font-bold text-lg">Smart Time Tasker</span>
@@ -88,3 +88,4 @@ export function Footer() {
     </footer>
   )
 }
+

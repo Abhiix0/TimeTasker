@@ -48,7 +48,7 @@ export default function DevicePage() {
           </div>
 
           <div className="order-1 lg:order-2 flex items-center justify-center">
-            <div className="relative w-full h-96 bg-gradient-to-br from-primary/20 to-accent/20 rounded-3xl flex items-center justify-center border border-primary/20">
+            <div className="relative w-full h-96 bg-linear-to-br from-primary/20 to-accent/20 rounded-3xl flex items-center justify-center border border-primary/20">
               <div className="text-center">
                 <div className="text-8xl mb-4">⏱️</div>
                 <p className="text-muted-foreground">ESP32 Pomodoro Device</p>
@@ -135,8 +135,8 @@ export default function DevicePage() {
               }
             ].map((item, i) => (
               <div key={i} className="flex gap-6 items-start">
-                <div className="flex-shrink-0">
-                  <div className="flex items-center justify-center w-12 h-12 rounded-lg bg-gradient-to-br from-primary to-accent">
+                <div className="shrink-0">
+                  <div className="flex items-center justify-center w-12 h-12 rounded-lg bg-linear-to-br from-primary to-accent">
                     <span className="text-white font-bold">{item.step}</span>
                   </div>
                 </div>
@@ -204,14 +204,14 @@ export default function DevicePage() {
         </div>
 
         {/* Getting Started */}
-        <Card className="p-12 border-border bg-gradient-to-br from-primary/10 to-accent/10 text-center">
+        <Card className="p-12 border-border bg-linear-to-br from-primary/10 to-accent/10 text-center">
           <h3 className="text-3xl font-bold mb-4">Ready to Get Your Device?</h3>
           <p className="text-lg text-muted-foreground mb-8 max-w-2xl mx-auto">
             The Smart Time Tasker device comes with full setup instructions and troubleshooting guides. Start your distraction-free productivity journey today.
           </p>
           
           <div className="flex flex-col sm:flex-row gap-4 justify-center flex-wrap">
-            <Button asChild size="lg" className="rounded-full bg-gradient-to-r from-primary to-accent hover:shadow-lg">
+            <Button asChild size="lg" className="rounded-full bg-linear-to-r from-primary to-accent hover:shadow-lg">
               <Link href="/timer">Start with Web Timer</Link>
             </Button>
             <Button asChild size="lg" variant="outline" className="rounded-full">
@@ -223,3 +223,4 @@ export default function DevicePage() {
     </div>
   )
 }
+

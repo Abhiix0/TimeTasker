@@ -1,44 +1,35 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { collection, onSnapshot, query, orderBy, limit } from 'firebase/firestore'
+import { getAuth } from 'firebase/auth'
+import { db } from '@/lib/firebase'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { StreakCalendar } from '@/components/streak-calendar'
 import { useAppContext } from '@/lib/app-context'
 
 // ---------------------------------------------------------------------------
-// Mock data
-// TODO: replace mock data with Firebase query when backend is ready
+// Types
 // ---------------------------------------------------------------------------
 
-interface LeaderboardUser {
-  id: number
-  name: string
+export interface LeaderboardEntry {
+  uid: string
+  displayName: string
   initials: string
-  focusTime: number   // minutes
-  tasksCompleted: number
-  sessions: number
+  weeklyFocusMinutes: number
+  weeklySessions: number
   streak: number
+  showOnLeaderboard: boolean
   isYou?: boolean
 }
 
-const MOCK_USERS: LeaderboardUser[] = [
-  { id: 1, name: 'Alex Chen',      initials: 'AC', focusTime: 1240, tasksCompleted: 48, sessions: 52, streak: 14 },
-  { id: 2, name: 'Maria Santos',   initials: 'MS', focusTime: 1100, tasksCompleted: 41, sessions: 44, streak: 9  },
-  { id: 3, name: 'You',            initials: 'ME', focusTime: 975,  tasksCompleted: 36, sessions: 39, streak: 7,  isYou: true },
-  { id: 4, name: 'James Park',     initials: 'JP', focusTime: 860,  tasksCompleted: 31, sessions: 34, streak: 5  },
-  { id: 5, name: 'Priya Nair',     initials: 'PN', focusTime: 720,  tasksCompleted: 27, sessions: 29, streak: 4  },
-  { id: 6, name: 'Lucas Müller',   initials: 'LM', focusTime: 640,  tasksCompleted: 22, sessions: 26, streak: 3  },
-  { id: 7, name: 'Sara Johansson', initials: 'SJ', focusTime: 510,  tasksCompleted: 18, sessions: 21, streak: 2  },
-  { id: 8, name: 'Omar Hassan',    initials: 'OH', focusTime: 380,  tasksCompleted: 12, sessions: 15, streak: 1  },
-]
-
-type Tab = 'focusTime' | 'tasksCompleted' | 'sessions'
+type Tab = 'weeklyFocusMinutes' | 'weeklySessions' | 'streak'
 
 const TABS: { key: Tab; label: string }[] = [
-  { key: 'focusTime',      label: 'Focus Time'       },
-  { key: 'tasksCompleted', label: 'Tasks Completed'  },
-  { key: 'sessions',       label: 'Sessions'         },
+  { key: 'weeklyFocusMinutes', label: 'Focus Time'  },
+  { key: 'weeklySessions',     label: 'Sessions'    },
+  { key: 'streak',             label: 'Streak'      },
 ]
 
 const MEDALS = ['🥇', '🥈', '🥉']
@@ -57,20 +48,84 @@ function formatFocusTime(minutes: number) {
 }
 
 // ---------------------------------------------------------------------------
+// Skeleton row
+// ---------------------------------------------------------------------------
+
+function SkeletonRow() {
+  return (
+    <Card className="p-4 border-border flex items-center gap-4 animate-pulse">
+      <div className="w-8 h-5 bg-muted rounded" />
+      <div className="w-9 h-9 rounded-full bg-muted shrink-0" />
+      <div className="flex-1 h-4 bg-muted rounded" />
+      <div className="w-16 h-4 bg-muted rounded" />
+    </Card>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
 export default function LeaderboardPage() {
-  const [activeTab, setActiveTab] = useState<Tab>('focusTime')
+  const [activeTab, setActiveTab] = useState<Tab>('weeklyFocusMinutes')
+  const [entries, setEntries] = useState<LeaderboardEntry[]>([])
+  const [loading, setLoading] = useState(true)
   const { state } = useAppContext()
   const { stats, weeklyActivity } = state
 
-  const sorted = [...MOCK_USERS].sort((a, b) => b[activeTab] - a[activeTab])
+  // Subscribe to leaderboard collection ordered by active tab field
+  useEffect(() => {
+    setLoading(true)
+    const currentUid = getAuth().currentUser?.uid ?? null
 
-  const statLabel = (user: LeaderboardUser) => {
-    if (activeTab === 'focusTime')      return formatFocusTime(user.focusTime)
-    if (activeTab === 'tasksCompleted') return `${user.tasksCompleted} tasks`
-    return `${user.sessions} sessions`
+    const q = query(
+      collection(db, 'leaderboard'),
+      orderBy(activeTab, 'desc'),
+      limit(50)
+    )
+
+    const unsub = onSnapshot(q, (snap) => {
+      const rows: LeaderboardEntry[] = []
+      snap.forEach((d) => {
+        const data = d.data() as Omit<LeaderboardEntry, 'uid' | 'isYou'>
+        if (!data.showOnLeaderboard) return
+        rows.push({ ...data, uid: d.id, isYou: d.id === currentUid })
+      })
+      setEntries(rows)
+      setLoading(false)
+    }, () => setLoading(false))
+
+    return unsub
+  }, [activeTab])
+
+  // If current user has no leaderboard entry, append a ghost row from local stats
+  const currentUid = getAuth().currentUser?.uid ?? null
+  const hasOwnEntry = entries.some((e) => e.isYou)
+  const last7FocusMinutes = state.weeklyActivity
+    .filter(d => (Date.now() - new Date(d.date).getTime()) / 86400000 < 7)
+    .reduce((s, d) => s + d.focusMinutes, 0)
+  const last7Sessions = state.weeklyActivity
+    .filter(d => (Date.now() - new Date(d.date).getTime()) / 86400000 < 7)
+    .reduce((s, d) => s + d.sessionsCompleted, 0)
+
+  const ghostEntry: LeaderboardEntry | null =
+    !hasOwnEntry && currentUid
+      ? {
+          uid: currentUid,
+          displayName: 'You',
+          initials: 'ME',
+          weeklyFocusMinutes: last7FocusMinutes,
+          weeklySessions: last7Sessions,
+          streak: stats.currentStreak,
+          showOnLeaderboard: true,
+          isYou: true,
+        }
+      : null
+
+  const statLabel = (entry: LeaderboardEntry) => {
+    if (activeTab === 'weeklyFocusMinutes') return formatFocusTime(entry.weeklyFocusMinutes)
+    if (activeTab === 'weeklySessions')     return `${entry.weeklySessions} sessions`
+    return `${entry.streak}d streak`
   }
 
   return (
@@ -83,9 +138,7 @@ export default function LeaderboardPage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
 
-          {/* ----------------------------------------------------------------
-              LEFT — Leaderboard table (3/5 width on desktop)
-          ---------------------------------------------------------------- */}
+          {/* LEFT — table */}
           <div className="lg:col-span-3 space-y-4">
             {/* Tabs */}
             <div className="flex gap-2 flex-wrap">
@@ -104,65 +157,93 @@ export default function LeaderboardPage() {
 
             {/* Rows */}
             <div className="space-y-2">
-              {sorted.map((user, idx) => {
-                const rank = idx + 1
-                const isFirst = rank === 1
-                return (
-                  <Card
-                    key={user.id}
-                    className={`p-4 border flex items-center gap-4 transition-shadow
-                      ${user.isYou ? 'border-primary/60 bg-primary/5' : 'border-border'}
-                      ${isFirst ? 'shadow-[0_0_0_1px_hsl(var(--primary)/0.4),0_0_16px_hsl(var(--primary)/0.15)]' : ''}
-                    `}
-                  >
-                    {/* Rank */}
-                    <div className="w-8 text-center shrink-0">
-                      {rank <= 3
-                        ? <span className="text-xl">{MEDALS[rank - 1]}</span>
-                        : <span className="text-sm font-bold text-muted-foreground">{rank}</span>
-                      }
-                    </div>
+              {loading ? (
+                <>
+                  <SkeletonRow />
+                  <SkeletonRow />
+                  <SkeletonRow />
+                </>
+              ) : (
+                <>
+                  {entries.map((entry, idx) => {
+                    const rank = idx + 1
+                    const isFirst = rank === 1
+                    return (
+                      <Card
+                        key={entry.uid}
+                        className={`p-4 border flex items-center gap-4 transition-shadow
+                          ${entry.isYou ? 'border-primary/60 bg-primary/5' : 'border-border'}
+                          ${isFirst ? 'shadow-[0_0_0_1px_hsl(var(--primary)/0.4),0_0_16px_hsl(var(--primary)/0.15)]' : ''}
+                        `}
+                      >
+                        <div className="w-8 text-center shrink-0">
+                          {rank <= 3
+                            ? <span className="text-xl">{MEDALS[rank - 1]}</span>
+                            : <span className="text-sm font-bold text-muted-foreground">{rank}</span>
+                          }
+                        </div>
+                        <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shrink-0
+                          ${entry.isYou
+                            ? 'bg-linear-to-br from-primary to-accent text-white'
+                            : 'bg-muted text-muted-foreground'
+                          }`}
+                        >
+                          {entry.initials}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className={`font-medium truncate ${entry.isYou ? 'text-primary' : ''}`}>
+                            {entry.displayName}
+                            {entry.isYou && <span className="ml-2 text-xs text-muted-foreground">(you)</span>}
+                          </p>
+                        </div>
+                        <div className="text-sm text-muted-foreground shrink-0">
+                          🔥 {entry.streak}d
+                        </div>
+                        <div className="text-right shrink-0 min-w-[72px]">
+                          <span className={`font-bold text-sm ${isFirst ? 'text-primary' : ''}`}>
+                            {statLabel(entry)}
+                          </span>
+                        </div>
+                      </Card>
+                    )
+                  })}
 
-                    {/* Avatar */}
-                    <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shrink-0
-                      ${user.isYou
-                        ? 'bg-gradient-to-br from-primary to-accent text-white'
-                        : 'bg-muted text-muted-foreground'
-                      }`}
-                    >
-                      {user.initials}
-                    </div>
+                  {/* Ghost row — user not yet on leaderboard */}
+                  {ghostEntry && (
+                    <Card className="p-4 border border-primary/40 bg-primary/5 flex items-center gap-4 opacity-70">
+                      <div className="w-8 text-center shrink-0">
+                        <span className="text-sm font-bold text-muted-foreground">–</span>
+                      </div>
+                      <div className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shrink-0 bg-linear-to-br from-primary to-accent text-white">
+                        {ghostEntry.initials}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium truncate text-primary">
+                          {ghostEntry.displayName}
+                          <span className="ml-2 text-xs text-muted-foreground">(you — not ranked yet)</span>
+                        </p>
+                      </div>
+                      <div className="text-sm text-muted-foreground shrink-0">
+                        🔥 {ghostEntry.streak}d
+                      </div>
+                      <div className="text-right shrink-0 min-w-[72px]">
+                        <span className="font-bold text-sm">{statLabel(ghostEntry)}</span>
+                      </div>
+                    </Card>
+                  )}
 
-                    {/* Name */}
-                    <div className="flex-1 min-w-0">
-                      <p className={`font-medium truncate ${user.isYou ? 'text-primary' : ''}`}>
-                        {user.name}
-                        {user.isYou && <span className="ml-2 text-xs text-muted-foreground">(you)</span>}
-                      </p>
-                    </div>
-
-                    {/* Streak badge */}
-                    <div className="text-sm text-muted-foreground shrink-0">
-                      🔥 {user.streak}d
-                    </div>
-
-                    {/* Stat value */}
-                    <div className="text-right shrink-0 min-w-[72px]">
-                      <span className={`font-bold text-sm ${isFirst ? 'text-primary' : ''}`}>
-                        {statLabel(user)}
-                      </span>
-                    </div>
-                  </Card>
-                )
-              })}
+                  {entries.length === 0 && !ghostEntry && (
+                    <Card className="p-12 text-center border-border">
+                      <p className="text-muted-foreground text-sm">No leaderboard data yet.</p>
+                    </Card>
+                  )}
+                </>
+              )}
             </div>
           </div>
 
-          {/* ----------------------------------------------------------------
-              RIGHT — Your streak stats (2/5 width on desktop)
-          ---------------------------------------------------------------- */}
+          {/* RIGHT — streak panel */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Streak numbers */}
             <Card className="p-6 border-border">
               <h2 className="text-lg font-bold mb-4">Your Streak</h2>
               <div className="grid grid-cols-2 gap-4">
@@ -177,13 +258,11 @@ export default function LeaderboardPage() {
               </div>
             </Card>
 
-            {/* Streak calendar */}
             <Card className="p-6 border-border overflow-x-auto">
               <h2 className="text-lg font-bold mb-4">Activity Calendar</h2>
               <StreakCalendar activity={weeklyActivity} />
             </Card>
 
-            {/* Milestones */}
             <Card className="p-6 border-border">
               <h2 className="text-lg font-bold mb-4">Streak Milestones</h2>
               <div className="space-y-3">
@@ -218,3 +297,4 @@ export default function LeaderboardPage() {
     </div>
   )
 }
+

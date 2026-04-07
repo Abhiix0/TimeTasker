@@ -5,8 +5,12 @@ import {
   useContext,
   useReducer,
   useEffect,
+  useRef,
   type ReactNode,
 } from 'react'
+import { doc, getDoc, setDoc } from 'firebase/firestore'
+import { db } from './firebase'
+import { useAuth } from './use-auth'
 import type { AppState, Task, Settings, DailyActivity } from './types'
 
 // ---------------------------------------------------------------------------
@@ -56,6 +60,7 @@ type Action =
   | { type: 'PAUSE_TIMER' }
   | { type: 'RESET_TIMER' }
   | { type: 'COMPLETE_SESSION' }
+  | { type: 'SKIP_SESSION' }
   | { type: 'UPDATE_SETTINGS'; payload: Partial<Settings> }
   | { type: 'RESET_ALL' }
   | { type: 'LOAD_FROM_STORAGE'; payload: Partial<AppState> }
@@ -94,9 +99,9 @@ function calcStreak(activity: DailyActivity[]): number {
   const byDate = new Map(activity.map((a) => [a.date, a.sessionsCompleted]))
   let streak = 0
   const cursor = new Date()
-  // Start from today; if today has no sessions yet, start from yesterday
+  // Only step back to yesterday if today has 0 sessions AND it's before 4am
   const todayKey = cursor.toISOString().split('T')[0]
-  if (!byDate.get(todayKey)) cursor.setDate(cursor.getDate() - 1)
+  if (!byDate.get(todayKey) && cursor.getHours() < 4) cursor.setDate(cursor.getDate() - 1)
   while (true) {
     const key = cursor.toISOString().split('T')[0]
     if ((byDate.get(key) ?? 0) > 0) {
@@ -117,7 +122,7 @@ function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
     case 'ADD_TASK': {
       const task: Task = {
-        id: Date.now().toString(),
+        id: crypto.randomUUID(),
         title: action.payload.title.trim(),
         completed: false,
         createdAt: Date.now(),
@@ -232,17 +237,52 @@ function reducer(state: AppState, action: Action): AppState {
       }
     }
 
+    case 'SKIP_SESSION': {
+      const { timer, settings } = state
+      const isWork = timer.mode === 'work'
+      const newSessionsCompleted = timer.sessionsCompleted + (isWork ? 1 : 0)
+
+      let nextMode: AppState['timer']['mode'] = 'shortBreak'
+      if (!isWork) {
+        nextMode = 'work'
+      } else if (newSessionsCompleted % 4 === 0) {
+        nextMode = 'longBreak'
+      }
+
+      const nextDuration =
+        nextMode === 'work'
+          ? settings.focusDuration
+          : nextMode === 'shortBreak'
+          ? settings.shortBreakDuration
+          : settings.longBreakDuration
+
+      return {
+        ...state,
+        timer: {
+          ...timer,
+          mode: nextMode,
+          isRunning: isWork ? true : settings.autoStartBreaks,
+          timeLeft: nextDuration * 60,
+          totalTime: nextDuration * 60,
+          sessionsCompleted: newSessionsCompleted,
+        },
+      }
+    }
+
     case 'UPDATE_SETTINGS': {
       const settings = { ...state.settings, ...action.payload }
       // Recalculate timer totalTime if durations changed and timer is not running
+      const notRunning = !state.timer.isRunning
       const totalTime =
-        !state.timer.isRunning && state.timer.mode === 'work'
-          ? settings.focusDuration * 60
-          : state.timer.totalTime
+        notRunning && state.timer.mode === 'work' ? settings.focusDuration * 60
+        : notRunning && state.timer.mode === 'shortBreak' ? settings.shortBreakDuration * 60
+        : notRunning && state.timer.mode === 'longBreak' ? settings.longBreakDuration * 60
+        : state.timer.totalTime
       const timeLeft =
-        !state.timer.isRunning && state.timer.mode === 'work'
-          ? settings.focusDuration * 60
-          : state.timer.timeLeft
+        notRunning && state.timer.mode === 'work' ? settings.focusDuration * 60
+        : notRunning && state.timer.mode === 'shortBreak' ? settings.shortBreakDuration * 60
+        : notRunning && state.timer.mode === 'longBreak' ? settings.longBreakDuration * 60
+        : state.timer.timeLeft
       return {
         ...state,
         settings,
@@ -281,6 +321,53 @@ interface AppContextValue {
   dispatch: React.Dispatch<Action>
 }
 
+// ---------------------------------------------------------------------------
+// Cloud Functions helpers
+// ---------------------------------------------------------------------------
+
+async function postValidateSession(
+  user: import('firebase/auth').User,
+  durationMinutes: number
+): Promise<boolean> {
+  try {
+    const token = await user.getIdToken()
+    const res = await fetch(
+      `${process.env.NEXT_PUBLIC_CLOUD_FUNCTIONS_URL}/validate_session`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          uid: user.uid,
+          duration_minutes: durationMinutes,
+          completed_at: new Date().toISOString(),
+        }),
+      }
+    )
+    return res.ok
+  } catch {
+    return true // fail open — don't punish users for network errors
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Leaderboard sync helper
+// ---------------------------------------------------------------------------
+
+function calcLast7Stats(weeklyActivity: DailyActivity[]): { minutes: number; sessions: number } {
+  const cutoff = new Date()
+  cutoff.setDate(cutoff.getDate() - 7)
+  const cutoffStr = cutoff.toISOString().split('T')[0]
+  return weeklyActivity
+    .filter((a) => a.date >= cutoffStr)
+    .reduce(
+      (acc, a) => ({
+        minutes: acc.minutes + (a.focusMinutes ?? 0),
+        sessions: acc.sessions + (a.sessionsCompleted ?? 0),
+      }),
+      { minutes: 0, sessions: 0 }
+    )
+}
+
 const AppContext = createContext<AppContextValue | null>(null)
 
 // ---------------------------------------------------------------------------
@@ -291,8 +378,12 @@ const STORAGE_KEY = 'stt_app_state'
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initialState)
+  const { user } = useAuth()
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const leaderboardTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const prevSessionsTodayRef = useRef<number>(0)
 
-  // Load from localStorage on mount
+  // ── localStorage: load on mount ──────────────────────────────────────────
   useEffect(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY)
@@ -305,22 +396,80 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  // Persist to localStorage on every state change
-  // TODO: sync to Firebase when db is available
+  // ── localStorage: persist on every state change (offline fallback) ───────
   useEffect(() => {
     try {
-      // Don't persist timer.isRunning — always start paused on reload
-      const toSave: AppState = {
-        ...state,
-        timer: { ...state.timer, isRunning: false },
-      }
+      const toSave: AppState = { ...state, timer: { ...state.timer, isRunning: false } }
       localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave))
     } catch (e) {
       console.error('Failed to persist state to localStorage:', e)
     }
   }, [state])
 
-  return <AppContext.Provider value={{ state, dispatch }}>{children}</AppContext.Provider>
+  // ── Firestore: load when user signs in ───────────────────────────────────
+  useEffect(() => {
+    if (!user) return
+    const ref = doc(db, 'users', user.uid)
+    getDoc(ref).then((snap) => {
+      if (snap.exists()) {
+        dispatch({ type: 'LOAD_FROM_STORAGE', payload: snap.data() as Partial<AppState> })
+      } else {
+        // Brand new user — create empty doc (profile page handles display name)
+        setDoc(ref, {}).catch(console.error)
+      }
+    }).catch(console.error)
+  }, [user])
+
+  // ── Firestore: debounced save on state change ────────────────────────────
+  useEffect(() => {
+    if (!user) return
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+    saveTimerRef.current = setTimeout(() => {
+      const toSave: AppState = { ...state, timer: { ...state.timer, isRunning: false } }
+      setDoc(doc(db, 'users', user.uid), toSave).catch(console.error)
+    }, 1500)
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+    }
+  }, [state, user])
+
+  // ── Firestore: debounced leaderboard stat sync ───────────────────────────
+  useEffect(() => {
+    if (!user) return
+    if (leaderboardTimerRef.current) clearTimeout(leaderboardTimerRef.current)
+    leaderboardTimerRef.current = setTimeout(() => {
+      const { minutes, sessions } = calcLast7Stats(state.weeklyActivity)
+      setDoc(
+        doc(db, 'leaderboard', user.uid),
+        {
+          weeklyFocusMinutes: minutes,
+          weeklySessions: sessions,
+          streak: state.stats.currentStreak,
+          showOnLeaderboard: true,
+        },
+        { merge: true }
+      ).catch(console.error)
+    }, 3000)
+    return () => {
+      if (leaderboardTimerRef.current) clearTimeout(leaderboardTimerRef.current)
+    }
+  }, [state.stats, state.weeklyActivity, user])
+
+  // ── Cloud Function: fire-and-forget session validation on increment ──────
+  useEffect(() => {
+    if (!user) return
+    const current = state.stats.sessionsToday
+    if (current > prevSessionsTodayRef.current) {
+      postValidateSession(user, state.settings.focusDuration).catch(console.error)
+    }
+    prevSessionsTodayRef.current = current
+  }, [state.stats.sessionsToday, user, state.settings.focusDuration])
+
+  return (
+    <AppContext.Provider value={{ state, dispatch }}>
+      {children}
+    </AppContext.Provider>
+  )
 }
 
 // ---------------------------------------------------------------------------

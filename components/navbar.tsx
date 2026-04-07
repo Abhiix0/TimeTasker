@@ -29,10 +29,10 @@ export function Navbar() {
     <div className="flex items-center justify-between h-16 px-4">
       {/* Logo — shown in landing layout; hidden in app layout (sidebar has it) */}
       <Link href="/" className="flex items-center gap-2 md:hidden">
-        <div className="w-7 h-7 bg-gradient-to-br from-primary to-accent rounded-lg flex items-center justify-center">
+        <div className="w-7 h-7 bg-linear-to-br from-primary to-accent rounded-lg flex items-center justify-center">
           <span className="text-white font-bold text-xs">ST</span>
         </div>
-        <span className="font-bold text-base bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+        <span className="font-bold text-base bg-linear-to-r from-primary to-accent bg-clip-text text-transparent">
           Smart Time
         </span>
       </Link>
@@ -53,3 +53,4 @@ export function Navbar() {
     </div>
   )
 }
+

@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { useEffect, useState } from 'react'
 import {
   LayoutDashboard,
   Timer,
@@ -26,6 +27,7 @@ import {
   SidebarMenuItem,
 } from '@/components/ui/sidebar'
 import { useAppContext } from '@/lib/app-context'
+import { useAuth } from '@/lib/use-auth'
 
 const NAV_ITEMS = [
   { href: '/dashboard',   label: 'Dashboard',   icon: LayoutDashboard },
@@ -51,17 +53,33 @@ function isActiveRoute(pathname: string, href: string): boolean {
 export function AppSidebar() {
   const pathname = usePathname()
   const { state } = useAppContext()
+  const { user } = useAuth()
   const streak = state.stats.currentStreak
+
+  const [isOnline, setIsOnline] = useState(
+    typeof navigator !== 'undefined' ? navigator.onLine : true
+  )
+
+  useEffect(() => {
+    const onOnline  = () => setIsOnline(true)
+    const onOffline = () => setIsOnline(false)
+    window.addEventListener('online',  onOnline)
+    window.addEventListener('offline', onOffline)
+    return () => {
+      window.removeEventListener('online',  onOnline)
+      window.removeEventListener('offline', onOffline)
+    }
+  }, [])
 
   return (
     <Sidebar collapsible="icon">
       {/* Logo */}
       <SidebarHeader className="p-4">
         <Link href="/dashboard" className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-gradient-to-br from-primary to-accent rounded-lg flex items-center justify-center shrink-0">
+          <div className="w-8 h-8 bg-linear-to-br from-primary to-accent rounded-lg flex items-center justify-center shrink-0">
             <span className="text-white font-bold text-sm">ST</span>
           </div>
-          <span className="font-bold text-base bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent group-data-[collapsible=icon]:hidden">
+          <span className="font-bold text-base bg-linear-to-r from-primary to-accent bg-clip-text text-transparent group-data-[collapsible=icon]:hidden">
             Smart Time
           </span>
         </Link>
@@ -140,7 +158,18 @@ export function AppSidebar() {
             Device not connected
           </span>
         </div>
+
+        {/* Sync status — only shown when logged in */}
+        {user && (
+          <div className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center">
+            <span className={`w-2 h-2 rounded-full shrink-0 ${isOnline ? 'bg-green-500' : 'bg-yellow-400'}`} />
+            <span className="text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
+              {isOnline ? 'Synced' : 'Offline'}
+            </span>
+          </div>
+        )}
       </SidebarFooter>
     </Sidebar>
   )
 }
+

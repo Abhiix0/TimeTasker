@@ -5,8 +5,14 @@ import {
   useContext,
   useReducer,
   useEffect,
+  useRef,
+  useState,
   type ReactNode,
 } from 'react'
+import { doc, getDoc, setDoc } from 'firebase/firestore'
+import { db } from './firebase'
+import { useAuth } from './use-auth'
+import { ProfileSetupModal } from '@/components/profile-setup-modal'
 import type { AppState, Task, Settings, DailyActivity } from './types'
 
 // ---------------------------------------------------------------------------
@@ -56,6 +62,7 @@ type Action =
   | { type: 'PAUSE_TIMER' }
   | { type: 'RESET_TIMER' }
   | { type: 'COMPLETE_SESSION' }
+  | { type: 'SKIP_SESSION' }
   | { type: 'UPDATE_SETTINGS'; payload: Partial<Settings> }
   | { type: 'RESET_ALL' }
   | { type: 'LOAD_FROM_STORAGE'; payload: Partial<AppState> }
@@ -94,9 +101,9 @@ function calcStreak(activity: DailyActivity[]): number {
   const byDate = new Map(activity.map((a) => [a.date, a.sessionsCompleted]))
   let streak = 0
   const cursor = new Date()
-  // Start from today; if today has no sessions yet, start from yesterday
+  // Only step back to yesterday if today has 0 sessions AND it's before 4am
   const todayKey = cursor.toISOString().split('T')[0]
-  if (!byDate.get(todayKey)) cursor.setDate(cursor.getDate() - 1)
+  if (!byDate.get(todayKey) && cursor.getHours() < 4) cursor.setDate(cursor.getDate() - 1)
   while (true) {
     const key = cursor.toISOString().split('T')[0]
     if ((byDate.get(key) ?? 0) > 0) {
@@ -117,7 +124,7 @@ function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
     case 'ADD_TASK': {
       const task: Task = {
-        id: Date.now().toString(),
+        id: crypto.randomUUID(),
         title: action.payload.title.trim(),
         completed: false,
         createdAt: Date.now(),
@@ -232,17 +239,52 @@ function reducer(state: AppState, action: Action): AppState {
       }
     }
 
+    case 'SKIP_SESSION': {
+      const { timer, settings } = state
+      const isWork = timer.mode === 'work'
+      const newSessionsCompleted = timer.sessionsCompleted + (isWork ? 1 : 0)
+
+      let nextMode: AppState['timer']['mode'] = 'shortBreak'
+      if (!isWork) {
+        nextMode = 'work'
+      } else if (newSessionsCompleted % 4 === 0) {
+        nextMode = 'longBreak'
+      }
+
+      const nextDuration =
+        nextMode === 'work'
+          ? settings.focusDuration
+          : nextMode === 'shortBreak'
+          ? settings.shortBreakDuration
+          : settings.longBreakDuration
+
+      return {
+        ...state,
+        timer: {
+          ...timer,
+          mode: nextMode,
+          isRunning: isWork ? true : settings.autoStartBreaks,
+          timeLeft: nextDuration * 60,
+          totalTime: nextDuration * 60,
+          sessionsCompleted: newSessionsCompleted,
+        },
+      }
+    }
+
     case 'UPDATE_SETTINGS': {
       const settings = { ...state.settings, ...action.payload }
       // Recalculate timer totalTime if durations changed and timer is not running
+      const notRunning = !state.timer.isRunning
       const totalTime =
-        !state.timer.isRunning && state.timer.mode === 'work'
-          ? settings.focusDuration * 60
-          : state.timer.totalTime
+        notRunning && state.timer.mode === 'work' ? settings.focusDuration * 60
+        : notRunning && state.timer.mode === 'shortBreak' ? settings.shortBreakDuration * 60
+        : notRunning && state.timer.mode === 'longBreak' ? settings.longBreakDuration * 60
+        : state.timer.totalTime
       const timeLeft =
-        !state.timer.isRunning && state.timer.mode === 'work'
-          ? settings.focusDuration * 60
-          : state.timer.timeLeft
+        notRunning && state.timer.mode === 'work' ? settings.focusDuration * 60
+        : notRunning && state.timer.mode === 'shortBreak' ? settings.shortBreakDuration * 60
+        : notRunning && state.timer.mode === 'longBreak' ? settings.longBreakDuration * 60
+        : state.timer.timeLeft
       return {
         ...state,
         settings,
@@ -291,8 +333,11 @@ const STORAGE_KEY = 'stt_app_state'
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initialState)
+  const { user } = useAuth()
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [needsProfile, setNeedsProfile] = useState(false)
 
-  // Load from localStorage on mount
+  // ── localStorage: load on mount ──────────────────────────────────────────
   useEffect(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY)
@@ -305,22 +350,58 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  // Persist to localStorage on every state change
-  // TODO: sync to Firebase when db is available
+  // ── localStorage: persist on every state change (offline fallback) ───────
   useEffect(() => {
     try {
-      // Don't persist timer.isRunning — always start paused on reload
-      const toSave: AppState = {
-        ...state,
-        timer: { ...state.timer, isRunning: false },
-      }
+      const toSave: AppState = { ...state, timer: { ...state.timer, isRunning: false } }
       localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave))
     } catch (e) {
       console.error('Failed to persist state to localStorage:', e)
     }
   }, [state])
 
-  return <AppContext.Provider value={{ state, dispatch }}>{children}</AppContext.Provider>
+  // ── Firestore: load when user signs in ───────────────────────────────────
+  useEffect(() => {
+    if (!user) return
+    const ref = doc(db, 'users', user.uid)
+    getDoc(ref).then((snap) => {
+      if (snap.exists()) {
+        const data = snap.data() as Partial<AppState>
+        // If doc exists but has no displayName, it was created empty — prompt setup
+        if (!('displayName' in snap.data())) setNeedsProfile(true)
+        dispatch({ type: 'LOAD_FROM_STORAGE', payload: data })
+      } else {
+        // Brand new user — create empty doc and show profile setup
+        setDoc(ref, {}).catch(console.error)
+        setNeedsProfile(true)
+      }
+    }).catch(console.error)
+  }, [user])
+
+  // ── Firestore: debounced save on state change ────────────────────────────
+  useEffect(() => {
+    if (!user) return
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+    saveTimerRef.current = setTimeout(() => {
+      const toSave: AppState = { ...state, timer: { ...state.timer, isRunning: false } }
+      setDoc(doc(db, 'users', user.uid), toSave).catch(console.error)
+    }, 1500)
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+    }
+  }, [state, user])
+
+  return (
+    <AppContext.Provider value={{ state, dispatch }}>
+      {children}
+      {needsProfile && user && (
+        <ProfileSetupModal
+          uid={user.uid}
+          onComplete={() => setNeedsProfile(false)}
+        />
+      )}
+    </AppContext.Provider>
+  )
 }
 
 // ---------------------------------------------------------------------------

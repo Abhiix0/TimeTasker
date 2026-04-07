@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Play, Pause, RotateCcw, SkipForward } from 'lucide-react'
@@ -21,9 +21,17 @@ const MODE_CONFIG: Record<TimerMode, { label: string; gradient: string; ringColo
 // Sound
 // ---------------------------------------------------------------------------
 
+let _audioCtx: AudioContext | null = null
+function getAudioCtx(): AudioContext {
+  if (!_audioCtx || _audioCtx.state === 'closed') {
+    _audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)()
+  }
+  return _audioCtx
+}
+
 function playNotificationSound() {
   try {
-    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)()
+    const ctx = getAudioCtx()
     const osc = ctx.createOscillator()
     const gain = ctx.createGain()
     osc.connect(gain)
@@ -60,6 +68,8 @@ export function PomodoroTimer() {
 
   const cfg = MODE_CONFIG[mode]
 
+  const sessionFiredRef = useRef(false)
+
   // Single interval effect — ticks every second when running
   useEffect(() => {
     if (!isRunning) return
@@ -69,13 +79,32 @@ export function PomodoroTimer() {
     return () => clearInterval(id)
   }, [isRunning, dispatch])
 
-  // Session complete detection — safe, no ref needed.
-  // TICK_TIMER guards against timeLeft <= 0 in the reducer, so this only
-  // fires once when timeLeft genuinely reaches 0 while the timer is running.
-  // Intentionally depends only on timeLeft to avoid double-fire when
-  // isRunning flips during the same render cycle.
+  // Reset the guard whenever mode changes (i.e. after each session completes)
+  useEffect(() => {
+    sessionFiredRef.current = false
+  }, [mode])
+
+  // Keyboard shortcuts: Space = toggle, R = reset
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      const tag = document.activeElement?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return
+      if (e.code === 'Space') {
+        e.preventDefault()
+        dispatch({ type: isRunning ? 'PAUSE_TIMER' : 'START_TIMER' })
+      } else if (e.code === 'KeyR') {
+        dispatch({ type: 'RESET_TIMER' })
+      }
+    }
+    window.addEventListener('keydown', handleKey)
+    return () => window.removeEventListener('keydown', handleKey)
+  }, [isRunning, dispatch])
+
+  // Session complete detection
   useEffect(() => {
     if (timeLeft === 0 && isRunning) {
+      if (sessionFiredRef.current) return
+      sessionFiredRef.current = true
       if (settings.soundEnabled) playNotificationSound()
       dispatch({ type: 'COMPLETE_SESSION' })
     }
@@ -94,7 +123,7 @@ export function PomodoroTimer() {
       {/* Mode indicator badge */}
       <div className="flex justify-center mb-6">
         <span
-          className={`px-4 py-1.5 rounded-full text-sm font-medium bg-gradient-to-r ${cfg.gradient} text-white flex items-center gap-2`}
+          className={`px-4 py-1.5 rounded-full text-sm font-medium bg-linear-to-r ${cfg.gradient} text-white flex items-center gap-2`}
         >
           {cfg.label}
           {isRunning && sessionsCompleted > 0 && (
@@ -107,7 +136,7 @@ export function PomodoroTimer() {
         {/* Time display */}
         <div className="mb-4">
           <div
-            className={`text-7xl md:text-8xl font-bold bg-gradient-to-r ${cfg.gradient} bg-clip-text text-transparent font-mono`}
+            className={`text-7xl md:text-8xl font-bold bg-linear-to-r ${cfg.gradient} bg-clip-text text-transparent font-mono`}
           >
             {formatTime(timeLeft)}
           </div>
@@ -173,7 +202,7 @@ export function PomodoroTimer() {
             className={`rounded-full gap-2 min-w-32 ${
               isRunning
                 ? 'bg-destructive hover:bg-destructive/90'
-                : 'bg-gradient-to-r from-primary to-accent hover:shadow-lg'
+                : 'bg-linear-to-r from-primary to-accent hover:shadow-lg'
             }`}
           >
             {isRunning ? <><Pause className="w-5 h-5" /> Pause</> : <><Play className="w-5 h-5" /> Start</>}
@@ -194,7 +223,7 @@ export function PomodoroTimer() {
             variant="outline"
             onClick={() => {
               if (settings.soundEnabled) playNotificationSound()
-              dispatch({ type: 'COMPLETE_SESSION' })
+              dispatch({ type: 'SKIP_SESSION' })
             }}
             className="rounded-full gap-2"
           >
@@ -222,3 +251,4 @@ export function PomodoroTimer() {
     </div>
   )
 }
+

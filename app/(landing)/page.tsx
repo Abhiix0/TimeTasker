@@ -9,12 +9,12 @@ export default function Home() {
       {/* Hero Section */}
       <section className="relative overflow-hidden">
         {/* Background gradient */}
-        <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-accent/10 -z-10" />
+        <div className="absolute inset-0 bg-linear-to-br from-primary/10 to-accent/10 -z-10" />
         
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24 md:py-32">
           <div className="text-center space-y-6">
             <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold text-balance">
-              <span className="bg-gradient-to-r from-primary via-accent to-primary bg-clip-text text-transparent">
+              <span className="bg-linear-to-r from-primary via-accent to-primary bg-clip-text text-transparent">
                 Smart Time Tasker
               </span>
             </h1>
@@ -24,7 +24,7 @@ export default function Home() {
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center pt-6">
-              <Button asChild size="lg" className="rounded-full bg-gradient-to-r from-primary to-accent hover:shadow-lg">
+              <Button asChild size="lg" className="rounded-full bg-linear-to-r from-primary to-accent hover:shadow-lg">
                 <Link href="/timer">Start Timer</Link>
               </Button>
               <Button asChild size="lg" variant="outline" className="rounded-full">
@@ -110,7 +110,7 @@ export default function Home() {
             ].map((item) => (
               <div key={item.step} className="relative">
                 <div className="flex flex-col items-center text-center">
-                  <div className="w-16 h-16 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center mb-4">
+                  <div className="w-16 h-16 rounded-full bg-linear-to-br from-primary to-accent flex items-center justify-center mb-4">
                     <span className="text-2xl font-bold text-white">{item.step}</span>
                   </div>
                   <h3 className="text-xl font-semibold mb-2">{item.title}</h3>
@@ -120,7 +120,7 @@ export default function Home() {
                 {/* Arrow */}
                 {parseInt(item.step) < 3 && (
                   <div className="hidden md:flex absolute top-8 -right-12 items-center justify-center">
-                    <div className="w-8 h-0.5 bg-gradient-to-r from-primary to-transparent" />
+                    <div className="w-8 h-0.5 bg-linear-to-r from-primary to-transparent" />
                   </div>
                 )}
               </div>
@@ -154,13 +154,13 @@ export default function Home() {
                 ))}
               </ul>
 
-              <Button asChild size="lg" className="rounded-full bg-gradient-to-r from-primary to-accent hover:shadow-lg">
+              <Button asChild size="lg" className="rounded-full bg-linear-to-r from-primary to-accent hover:shadow-lg">
                 <Link href="/device">Learn About Device</Link>
               </Button>
             </div>
 
             <div className="flex items-center justify-center">
-              <div className="relative w-full h-96 bg-gradient-to-br from-primary/20 to-accent/20 rounded-3xl flex items-center justify-center border border-primary/20">
+              <div className="relative w-full h-96 bg-linear-to-br from-primary/20 to-accent/20 rounded-3xl flex items-center justify-center border border-primary/20">
                 <div className="text-center">
                   <div className="text-6xl mb-4">📱</div>
                   <p className="text-muted-foreground">ESP32 Device Preview</p>
@@ -180,7 +180,7 @@ export default function Home() {
           </p>
           
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button asChild size="lg" className="rounded-full bg-gradient-to-r from-primary to-accent hover:shadow-lg">
+            <Button asChild size="lg" className="rounded-full bg-linear-to-r from-primary to-accent hover:shadow-lg">
               <Link href="/timer">Get Started Now</Link>
             </Button>
             <Button asChild size="lg" variant="outline" className="rounded-full">
@@ -192,3 +192,4 @@ export default function Home() {
     </div>
   )
 }
+

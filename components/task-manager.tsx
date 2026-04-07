@@ -6,16 +6,27 @@ import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { CheckCircle2, Circle, Trash2, Plus } from 'lucide-react'
 import { useAppContext } from '@/lib/app-context'
+import type { Task } from '@/lib/types'
+
+type Priority = Task['priority']
+
+const PRIORITY_BUTTONS: { value: Priority; label: string; activeClass: string }[] = [
+  { value: 'high',   label: 'High', activeClass: 'bg-destructive/10 border-destructive text-destructive' },
+  { value: 'medium', label: 'Med',  activeClass: 'bg-accent/10 border-accent text-accent'               },
+  { value: 'low',    label: 'Low',  activeClass: 'bg-muted border-foreground/40 text-foreground'         },
+]
 
 export function TaskManager() {
   const { state, dispatch } = useAppContext()
   const { tasks } = state
   const [newTaskTitle, setNewTaskTitle] = useState('')
+  const [priority, setPriority] = useState<Priority>('medium')
 
   const addTask = (e: React.FormEvent) => {
     e.preventDefault()
     if (!newTaskTitle.trim()) return
-    dispatch({ type: 'ADD_TASK', payload: { title: newTaskTitle } })
+    if (newTaskTitle.trim().length > 200) return
+    dispatch({ type: 'ADD_TASK', payload: { title: newTaskTitle, priority } })
     setNewTaskTitle('')
   }
 
@@ -45,21 +56,42 @@ export function TaskManager() {
 
       {/* Add Task Form */}
       <Card className="p-6 border-border">
-        <form onSubmit={addTask} className="flex gap-2">
-          <Input
-            type="text"
-            placeholder="Add a new task..."
-            value={newTaskTitle}
-            onChange={(e) => setNewTaskTitle(e.target.value)}
-            className="flex-1 rounded-lg"
-          />
-          <Button
-            type="submit"
-            size="icon"
-            className="rounded-lg bg-gradient-to-r from-primary to-accent hover:shadow-lg"
-          >
-            <Plus className="w-5 h-5" />
-          </Button>
+        <form onSubmit={addTask} className="space-y-3">
+          {/* Priority selector */}
+          <div className="flex gap-1.5">
+            {PRIORITY_BUTTONS.map(({ value, label, activeClass }) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setPriority(value)}
+                className={`px-3 py-1 rounded-md text-xs font-medium border transition-colors
+                  ${priority === value ? activeClass : 'border-border text-muted-foreground hover:border-foreground/30'}
+                `}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <div className="flex-1 space-y-1">
+              <Input
+                type="text"
+                placeholder="Add a new task..."
+                value={newTaskTitle}
+                onChange={(e) => setNewTaskTitle(e.target.value)}
+                maxLength={200}
+                className="rounded-lg"
+              />
+              <p className="text-xs text-muted-foreground text-right">{newTaskTitle.length}/200</p>
+            </div>
+            <Button
+              type="submit"
+              size="icon"
+              className="rounded-lg bg-linear-to-r from-primary to-accent hover:shadow-lg"
+            >
+              <Plus className="w-5 h-5" />
+            </Button>
+          </div>
         </form>
       </Card>
 
@@ -83,14 +115,14 @@ export function TaskManager() {
                   >
                     <button
                       onClick={() => toggleTask(task.id)}
-                      className="flex-shrink-0 text-muted-foreground hover:text-primary transition-colors"
+                      className="shrink-0 text-muted-foreground hover:text-primary transition-colors"
                     >
                       <Circle className="w-6 h-6" />
                     </button>
                     <span className="flex-1 text-foreground">{task.title}</span>
                     <button
                       onClick={() => deleteTask(task.id)}
-                      className="flex-shrink-0 text-muted-foreground hover:text-destructive transition-colors"
+                      className="shrink-0 text-muted-foreground hover:text-destructive transition-colors"
                     >
                       <Trash2 className="w-5 h-5" />
                     </button>
@@ -110,14 +142,14 @@ export function TaskManager() {
                   >
                     <button
                       onClick={() => toggleTask(task.id)}
-                      className="flex-shrink-0 text-accent"
+                      className="shrink-0 text-accent"
                     >
                       <CheckCircle2 className="w-6 h-6" />
                     </button>
                     <span className="flex-1 text-muted-foreground line-through">{task.title}</span>
                     <button
                       onClick={() => deleteTask(task.id)}
-                      className="flex-shrink-0 text-muted-foreground hover:text-destructive transition-colors"
+                      className="shrink-0 text-muted-foreground hover:text-destructive transition-colors"
                     >
                       <Trash2 className="w-5 h-5" />
                     </button>
@@ -131,3 +163,4 @@ export function TaskManager() {
     </div>
   )
 }
+

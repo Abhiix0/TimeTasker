@@ -60,7 +60,7 @@ export default function DashboardPage() {
             </p>
             <div className="w-full h-2.5 bg-muted rounded-full overflow-hidden">
               <div
-                className="h-full bg-gradient-to-r from-primary to-accent rounded-full transition-all duration-500"
+                className="h-full bg-linear-to-r from-primary to-accent rounded-full transition-all duration-500"
                 style={{ width: `${goalPct}%` }}
               />
             </div>
@@ -77,7 +77,7 @@ export default function DashboardPage() {
               )}
             </div>
             <p className="text-5xl font-mono font-bold text-center my-4">{timerDisplay}</p>
-            <Button asChild className="rounded-full bg-gradient-to-r from-primary to-accent w-full">
+            <Button asChild className="rounded-full bg-linear-to-r from-primary to-accent w-full">
               <Link href="/timer">{timer.isRunning ? 'View Timer' : 'Start Session'}</Link>
             </Button>
           </Card>
@@ -106,7 +106,7 @@ export default function DashboardPage() {
                       </div>
                       <div className="w-full h-7 bg-muted rounded-lg overflow-hidden">
                         <div
-                          className="h-full bg-gradient-to-r from-primary to-accent rounded-lg transition-all duration-500"
+                          className="h-full bg-linear-to-r from-primary to-accent rounded-lg transition-all duration-500"
                           style={{ width: `${pct}%` }}
                         />
                       </div>
@@ -198,3 +198,4 @@ export default function DashboardPage() {
     </div>
   )
 }
+

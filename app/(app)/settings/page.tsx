@@ -19,7 +19,9 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { useAppContext } from '@/lib/app-context'
-import { Timer, Cpu, Database, Trash2, Download, Wifi } from 'lucide-react'
+import { doc, setDoc, getDoc } from 'firebase/firestore'
+import { db, auth } from '@/lib/firebase'
+import { Timer, Cpu, Database, Trash2, Download, Wifi, Shield } from 'lucide-react'
 
 // Simple inline toast — avoids needing a toast provider
 function useSimpleToast() {
@@ -44,6 +46,22 @@ export default function SettingsPage() {
     soundEnabled:        settings.soundEnabled,
     autoStartBreaks:     settings.autoStartBreaks,
   })
+
+  const [showOnLeaderboard, setShowOnLeaderboard] = useState(true)
+
+  // Load showOnLeaderboard from Firestore on mount
+  useEffect(() => {
+    const uid = auth.currentUser?.uid
+    if (!uid) return
+    getDoc(doc(db, 'leaderboard', uid)).then((snap) => {
+      if (snap.exists()) {
+        const data = snap.data()
+        if (typeof data.showOnLeaderboard === 'boolean') {
+          setShowOnLeaderboard(data.showOnLeaderboard)
+        }
+      }
+    }).catch(console.error)
+  }, [])
 
   useEffect(() => {
     setForm({
@@ -82,6 +100,19 @@ export default function SettingsPage() {
     localStorage.removeItem('stt_app_state')
     dispatch({ type: 'RESET_ALL' })
     toast.show('All data cleared.')
+  }
+
+  const toggleLeaderboard = async (value: boolean) => {
+    setShowOnLeaderboard(value)
+    const uid = auth.currentUser?.uid
+    if (!uid) return
+    try {
+      await setDoc(doc(db, 'leaderboard', uid), { showOnLeaderboard: value }, { merge: true })
+      toast.show(value ? 'You are now visible on the leaderboard.' : 'You are now hidden from the leaderboard.')
+    } catch (e) {
+      console.error(e)
+      toast.show('Failed to update privacy setting.')
+    }
   }
 
   return (
@@ -153,7 +184,7 @@ export default function SettingsPage() {
 
           <Button
             onClick={saveTimerSettings}
-            className="rounded-full bg-gradient-to-r from-primary to-accent hover:shadow-lg w-full sm:w-auto"
+            className="rounded-full bg-linear-to-r from-primary to-accent hover:shadow-lg w-full sm:w-auto"
           >
             Save Timer Settings
           </Button>
@@ -208,6 +239,21 @@ export default function SettingsPage() {
           >
             Connect Firebase
           </Button>
+        </Card>
+
+        {/* ── Privacy ────────────────────────────────────────────────── */}
+        <Card className="p-6 border-border space-y-4">
+          <div className="flex items-center gap-2">
+            <Shield className="w-5 h-5 text-primary" />
+            <h2 className="text-lg font-bold">Privacy</h2>
+          </div>
+          <Separator />
+          <ToggleRow
+            label="Show me on the leaderboard"
+            description="Allow other users to see your focus stats in the leaderboard"
+            checked={showOnLeaderboard}
+            onCheckedChange={toggleLeaderboard}
+          />
         </Card>
 
         {/* ── Data Management ────────────────────────────────────────── */}
@@ -310,3 +356,4 @@ function ToggleRow({
     </div>
   )
 }
+

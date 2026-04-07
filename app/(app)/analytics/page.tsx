@@ -50,14 +50,18 @@ export default function AnalyticsPage() {
       sessions: d.sessionsCompleted,
     }))
 
-  // Summary stats
-  const totalWeeklyFocus = weeklyActivity.reduce((s, d) => s + d.focusMinutes, 0)
-  const totalWeeklySessions = weeklyActivity.reduce((s, d) => s + d.sessionsCompleted, 0)
-  const avgSessions = weeklyActivity.length
-    ? (totalWeeklySessions / weeklyActivity.length).toFixed(1)
+  // Summary stats — last 7 days only
+  const last7 = weeklyActivity.filter(d => {
+    const diff = (Date.now() - new Date(d.date).getTime()) / 86400000
+    return diff < 7
+  })
+  const totalWeeklyFocus = last7.reduce((s, d) => s + d.focusMinutes, 0)
+  const totalWeeklySessions = last7.reduce((s, d) => s + d.sessionsCompleted, 0)
+  const avgSessions = last7.length
+    ? (totalWeeklySessions / last7.length).toFixed(1)
     : '0'
-  const bestDay = weeklyActivity.length
-    ? weeklyActivity.reduce((best, d) => (d.sessionsCompleted > best.sessionsCompleted ? d : best), weeklyActivity[0])
+  const bestDay = last7.length
+    ? last7.reduce((best, d) => (d.sessionsCompleted > best.sessionsCompleted ? d : best), last7[0])
     : null
   const completionRate = tasks.length
     ? Math.round((tasks.filter((t) => t.completed).length / tasks.length) * 100)

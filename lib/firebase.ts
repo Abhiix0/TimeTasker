@@ -16,9 +16,6 @@ const firebaseConfig = {
   measurementId:     process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
 }
 
-// Debug log — remove once Firebase is confirmed working
-console.log('ENV DEBUG:', firebaseConfig)
-
 // ---------------------------------------------------------------------------
 // Validate the config object itself — single source of truth
 // ---------------------------------------------------------------------------

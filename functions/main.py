@@ -49,3 +49,80 @@ def get_leaderboard(request: flask.Request) -> flask.Response:
 
     response.headers["Access-Control-Allow-Origin"] = "*"
     return response
+
+
+@functions_framework.http
+def validate_session(request: flask.Request) -> flask.Response:
+    """POST /validate_session
+    Body JSON: { uid, duration_minutes, completed_at }
+    Called by the frontend after each completed session.
+    Returns 200 {"valid": true} or 400 {"valid": false, "reason": "..."}
+    """
+    from services.sessions import validate_and_record_session
+    from firebase_admin import auth as admin_auth
+
+    # Verify Firebase ID token from Authorization header
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        return flask.jsonify({"valid": False, "reason": "Unauthorized"}), 401
+
+    try:
+        id_token = auth_header.split("Bearer ")[1]
+        decoded = admin_auth.verify_id_token(id_token)
+        uid_from_token = decoded["uid"]
+    except Exception:
+        return flask.jsonify({"valid": False, "reason": "Invalid token"}), 401
+
+    body = request.get_json(silent=True) or {}
+    uid = body.get("uid", "")
+
+    # Ensure user can only validate their own sessions
+    if uid != uid_from_token:
+        return flask.jsonify({"valid": False, "reason": "UID mismatch"}), 403
+
+    duration = int(body.get("duration_minutes", 0))
+    completed_at = str(body.get("completed_at", ""))
+
+    valid, reason = validate_and_record_session(uid, duration, completed_at)
+    if valid:
+        response = flask.jsonify({"valid": True})
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        return response, 200
+    else:
+        response = flask.jsonify({"valid": False, "reason": reason})
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        return response, 400
+
+
+@functions_framework.cloud_event
+def archive_weekly(cloud_event):
+    """Cloud Scheduler trigger — runs every Sunday at midnight UTC.
+    For each user doc, copies current weeklyActivity to users/{uid}/history/{weekKey}.
+    Also prunes weeklyActivity entries older than 90 days.
+    """
+    from firebase_admin import firestore as admin_firestore
+    from datetime import datetime, timezone, timedelta
+
+    db = admin_firestore.client()
+    week_key = datetime.now(timezone.utc).strftime("%Y-W%W")
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=90)).strftime("%Y-%m-%d")
+
+    users = db.collection("users").stream()
+    for user_doc in users:
+        uid = user_doc.id
+        data = user_doc.to_dict() or {}
+        weekly_activity = data.get("weeklyActivity", [])
+
+        if weekly_activity:
+            # Archive current week
+            db.collection("users").document(uid).collection("history").document(week_key).set({
+                "weeklyActivity": weekly_activity,
+                "archivedAt": datetime.now(timezone.utc),
+            })
+
+            # Prune entries older than 90 days
+            pruned = [a for a in weekly_activity if a.get("date", "") >= cutoff]
+            if len(pruned) != len(weekly_activity):
+                db.collection("users").document(uid).set(
+                    {"weeklyActivity": pruned}, merge=True
+                )

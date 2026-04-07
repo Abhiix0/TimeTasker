@@ -322,6 +322,34 @@ interface AppContextValue {
 }
 
 // ---------------------------------------------------------------------------
+// Cloud Functions helpers
+// ---------------------------------------------------------------------------
+
+async function postValidateSession(
+  user: import('firebase/auth').User,
+  durationMinutes: number
+): Promise<boolean> {
+  try {
+    const token = await user.getIdToken()
+    const res = await fetch(
+      `${process.env.NEXT_PUBLIC_CLOUD_FUNCTIONS_URL}/validate_session`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          uid: user.uid,
+          duration_minutes: durationMinutes,
+          completed_at: new Date().toISOString(),
+        }),
+      }
+    )
+    return res.ok
+  } catch {
+    return true // fail open — don't punish users for network errors
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Leaderboard sync helper
 // ---------------------------------------------------------------------------
 
@@ -353,6 +381,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth()
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const leaderboardTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const prevSessionsTodayRef = useRef<number>(0)
 
   // ── localStorage: load on mount ──────────────────────────────────────────
   useEffect(() => {
@@ -425,6 +454,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (leaderboardTimerRef.current) clearTimeout(leaderboardTimerRef.current)
     }
   }, [state.stats, state.weeklyActivity, user])
+
+  // ── Cloud Function: fire-and-forget session validation on increment ──────
+  useEffect(() => {
+    if (!user) return
+    const current = state.stats.sessionsToday
+    if (current > prevSessionsTodayRef.current) {
+      postValidateSession(user, state.settings.focusDuration).catch(console.error)
+    }
+    prevSessionsTodayRef.current = current
+  }, [state.stats.sessionsToday, user, state.settings.focusDuration])
 
   return (
     <AppContext.Provider value={{ state, dispatch }}>

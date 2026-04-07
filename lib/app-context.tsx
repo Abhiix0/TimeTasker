@@ -6,13 +6,11 @@ import {
   useReducer,
   useEffect,
   useRef,
-  useState,
   type ReactNode,
 } from 'react'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
 import { db } from './firebase'
 import { useAuth } from './use-auth'
-import { ProfileSetupModal } from '@/components/profile-setup-modal'
 import type { AppState, Task, Settings, DailyActivity } from './types'
 
 // ---------------------------------------------------------------------------
@@ -335,7 +333,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initialState)
   const { user } = useAuth()
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const [needsProfile, setNeedsProfile] = useState(false)
 
   // ── localStorage: load on mount ──────────────────────────────────────────
   useEffect(() => {
@@ -366,14 +363,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const ref = doc(db, 'users', user.uid)
     getDoc(ref).then((snap) => {
       if (snap.exists()) {
-        const data = snap.data() as Partial<AppState>
-        // If doc exists but has no displayName, it was created empty — prompt setup
-        if (!('displayName' in snap.data())) setNeedsProfile(true)
-        dispatch({ type: 'LOAD_FROM_STORAGE', payload: data })
+        dispatch({ type: 'LOAD_FROM_STORAGE', payload: snap.data() as Partial<AppState> })
       } else {
-        // Brand new user — create empty doc and show profile setup
+        // Brand new user — create empty doc (profile page handles display name)
         setDoc(ref, {}).catch(console.error)
-        setNeedsProfile(true)
       }
     }).catch(console.error)
   }, [user])
@@ -394,12 +387,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   return (
     <AppContext.Provider value={{ state, dispatch }}>
       {children}
-      {needsProfile && user && (
-        <ProfileSetupModal
-          uid={user.uid}
-          onComplete={() => setNeedsProfile(false)}
-        />
-      )}
     </AppContext.Provider>
   )
 }

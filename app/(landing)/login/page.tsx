@@ -53,7 +53,8 @@ export default function LoginPage() {
     setBusy(true)
     try {
       await createUserWithEmailAndPassword(auth, email, password)
-      router.push('/dashboard')
+      // New users have no display name — send them to profile setup
+      router.push('/profile')
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Account creation failed.')
     } finally {

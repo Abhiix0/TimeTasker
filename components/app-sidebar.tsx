@@ -13,6 +13,7 @@ import {
   Settings,
   Info,
   Cpu,
+  UserCircle,
 } from 'lucide-react'
 import {
   Sidebar,
@@ -36,6 +37,7 @@ const NAV_ITEMS = [
   { href: '/analytics',   label: 'Analytics',    icon: BarChart3 },
   { href: '/leaderboard', label: 'Leaderboard',  icon: Trophy },
   { href: '/streaks',     label: 'Streaks',      icon: Flame },
+  { href: '/profile',     label: 'Profile',      icon: UserCircle },
   { href: '/settings',    label: 'Settings',     icon: Settings },
 ]
 

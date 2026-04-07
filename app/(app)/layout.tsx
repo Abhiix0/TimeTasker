@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
+import { doc, getDoc } from 'firebase/firestore'
+import { db } from '@/lib/firebase'
 import { Navbar } from '@/components/navbar'
 import { AppSidebar } from '@/components/app-sidebar'
 import { AppProvider } from '@/lib/app-context'
@@ -45,12 +47,27 @@ function BottomNav() {
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
   const router = useRouter()
+  const pathname = usePathname()
 
   useEffect(() => {
-    if (!loading && !user) {
-      router.replace('/login')
-    }
-  }, [user, loading, router])
+    if (loading) return
+
+    // Not logged in → login page
+    if (!user) { router.replace('/login'); return }
+
+    // Already on profile page — don't redirect again
+    if (pathname === '/profile') return
+
+    // Check if display name is set; if not, redirect to profile setup.
+    // Google users have displayName on the Auth object; email users need
+    // the Firestore doc checked.
+    if (user.displayName) return
+
+    getDoc(doc(db, 'users', user.uid)).then((snap) => {
+      const hasName = snap.exists() && !!snap.data()?.displayName
+      if (!hasName) router.replace('/profile')
+    }).catch(console.error)
+  }, [user, loading, pathname, router])
 
   if (loading) {
     return (

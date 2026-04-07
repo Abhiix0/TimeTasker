@@ -22,6 +22,7 @@ import { useAppContext } from '@/lib/app-context'
 import { doc, setDoc, getDoc } from 'firebase/firestore'
 import { db, auth } from '@/lib/firebase'
 import { Timer, Cpu, Database, Trash2, Download, Wifi, Shield } from 'lucide-react'
+import { useEsp32 } from '@/lib/use-esp32'
 
 // Simple inline toast — avoids needing a toast provider
 function useSimpleToast() {
@@ -37,6 +38,11 @@ export default function SettingsPage() {
   const { state, dispatch } = useAppContext()
   const { settings } = state
   const toast = useSimpleToast()
+  const uid = auth.currentUser?.uid ?? null
+  const { status: deviceStatus, connect: connectDevice, disconnect: disconnectDevice } = useEsp32(uid)
+  const [bridgeUrl, setBridgeUrl] = useState(
+    process.env.NEXT_PUBLIC_ESP32_BRIDGE_URL ?? ''
+  )
 
   const [form, setForm] = useState({
     focusDuration:       settings.focusDuration,
@@ -199,8 +205,17 @@ export default function SettingsPage() {
           <Separator />
 
           <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-destructive shrink-0" />
-            <span className="text-sm text-muted-foreground">Not Connected</span>
+            <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${
+              deviceStatus === 'connected'  ? 'bg-green-500'  :
+              deviceStatus === 'connecting' ? 'bg-yellow-400' :
+              'bg-destructive'
+            }`} />
+            <span className="text-sm text-muted-foreground">
+              {deviceStatus === 'connected'  ? 'Connected'    :
+               deviceStatus === 'connecting' ? 'Connecting…'  :
+               deviceStatus === 'error'      ? 'Error'        :
+               'Not Connected'}
+            </span>
           </div>
 
           <p className="text-sm text-muted-foreground leading-relaxed">
@@ -208,15 +223,36 @@ export default function SettingsPage() {
             push buttons, and audio alerts — letting you leave your phone behind during focus sessions.
           </p>
 
-          {/* TODO: implement WebSocket connection to ESP32 device */}
-          <Button
-            variant="outline"
-            className="rounded-full gap-2"
-            onClick={() => toast.show('ESP32 integration coming soon.')}
-          >
-            <Wifi className="w-4 h-4" />
-            Connect Device
-          </Button>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label className="text-sm">Bridge URL</Label>
+              <Input
+                value={bridgeUrl}
+                onChange={(e) => setBridgeUrl(e.target.value)}
+                placeholder="ws://your-server:8765"
+                className="rounded-lg font-mono text-sm"
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                className="rounded-full gap-2"
+                disabled={deviceStatus === 'connecting' || deviceStatus === 'connected'}
+                onClick={() => connectDevice(bridgeUrl)}
+              >
+                <Wifi className="w-4 h-4" />
+                Connect
+              </Button>
+              <Button
+                variant="outline"
+                className="rounded-full"
+                disabled={deviceStatus === 'disconnected' || deviceStatus === 'error'}
+                onClick={disconnectDevice}
+              >
+                Disconnect
+              </Button>
+            </div>
+          </div>
         </Card>
 
         {/* ── Account ────────────────────────────────────────────────── */}

@@ -29,6 +29,7 @@ import {
 } from '@/components/ui/sidebar'
 import { useAppContext } from '@/lib/app-context'
 import { useAuth } from '@/lib/use-auth'
+import { useEsp32 } from '@/lib/use-esp32'
 
 const NAV_ITEMS = [
   { href: '/dashboard',   label: 'Dashboard',   icon: LayoutDashboard },
@@ -56,6 +57,7 @@ export function AppSidebar() {
   const pathname = usePathname()
   const { state } = useAppContext()
   const { user } = useAuth()
+  const { status: deviceStatus } = useEsp32(user?.uid ?? null)
   const streak = state.stats.currentStreak
 
   const [isOnline, setIsOnline] = useState(
@@ -154,10 +156,16 @@ export function AppSidebar() {
 
         {/* ESP32 connection status */}
         <div className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center">
-          {/* Red dot = not connected */}
-          <span className="w-2 h-2 rounded-full bg-destructive shrink-0" />
+          <span className={`w-2 h-2 rounded-full shrink-0 ${
+            deviceStatus === 'connected'   ? 'bg-green-500'  :
+            deviceStatus === 'connecting'  ? 'bg-yellow-400' :
+            'bg-destructive'
+          }`} />
           <span className="text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
-            Device not connected
+            {deviceStatus === 'connected'  ? 'Device connected'  :
+             deviceStatus === 'connecting' ? 'Connecting...'     :
+             deviceStatus === 'error'      ? 'Device error'      :
+             'Device not connected'}
           </span>
         </div>
 

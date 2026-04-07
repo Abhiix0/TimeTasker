@@ -126,3 +126,26 @@ def archive_weekly(cloud_event):
                 db.collection("users").document(uid).set(
                     {"weeklyActivity": pruned}, merge=True
                 )
+
+
+@functions_framework.http
+def esp32_auth_token(request: flask.Request) -> flask.Response:
+    """POST /esp32_auth_token
+    Body: { "device_secret": "...", "uid": "..." }
+    Returns a Firebase Custom Token for the ESP32 to use with Firebase Auth.
+    """
+    import os
+    from firebase_admin import auth as admin_auth
+
+    body = request.get_json(silent=True) or {}
+    if body.get("device_secret") != os.environ.get("ESP32_DEVICE_SECRET", "changeme"):
+        return flask.jsonify({"error": "Unauthorized"}), 401
+
+    uid = body.get("uid", "")
+    if not uid:
+        return flask.jsonify({"error": "Missing uid"}), 400
+
+    custom_token = admin_auth.create_custom_token(uid)
+    response = flask.jsonify({"token": custom_token.decode()})
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    return response, 200

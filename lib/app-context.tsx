@@ -321,6 +321,25 @@ interface AppContextValue {
   dispatch: React.Dispatch<Action>
 }
 
+// ---------------------------------------------------------------------------
+// Leaderboard sync helper
+// ---------------------------------------------------------------------------
+
+function calcLast7Stats(weeklyActivity: DailyActivity[]): { minutes: number; sessions: number } {
+  const cutoff = new Date()
+  cutoff.setDate(cutoff.getDate() - 7)
+  const cutoffStr = cutoff.toISOString().split('T')[0]
+  return weeklyActivity
+    .filter((a) => a.date >= cutoffStr)
+    .reduce(
+      (acc, a) => ({
+        minutes: acc.minutes + (a.focusMinutes ?? 0),
+        sessions: acc.sessions + (a.sessionsCompleted ?? 0),
+      }),
+      { minutes: 0, sessions: 0 }
+    )
+}
+
 const AppContext = createContext<AppContextValue | null>(null)
 
 // ---------------------------------------------------------------------------
@@ -333,6 +352,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initialState)
   const { user } = useAuth()
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const leaderboardTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // ── localStorage: load on mount ──────────────────────────────────────────
   useEffect(() => {
@@ -383,6 +403,28 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
     }
   }, [state, user])
+
+  // ── Firestore: debounced leaderboard stat sync ───────────────────────────
+  useEffect(() => {
+    if (!user) return
+    if (leaderboardTimerRef.current) clearTimeout(leaderboardTimerRef.current)
+    leaderboardTimerRef.current = setTimeout(() => {
+      const { minutes, sessions } = calcLast7Stats(state.weeklyActivity)
+      setDoc(
+        doc(db, 'leaderboard', user.uid),
+        {
+          weeklyFocusMinutes: minutes,
+          weeklySessions: sessions,
+          streak: state.stats.currentStreak,
+          showOnLeaderboard: true,
+        },
+        { merge: true }
+      ).catch(console.error)
+    }, 3000)
+    return () => {
+      if (leaderboardTimerRef.current) clearTimeout(leaderboardTimerRef.current)
+    }
+  }, [state.stats, state.weeklyActivity, user])
 
   return (
     <AppContext.Provider value={{ state, dispatch }}>
